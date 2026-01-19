@@ -23,17 +23,15 @@ namespace UFZapret.Lib
         {
             string value = ConfigManager.GetValue("pathOrigin", "none");
 
-            if (value == "none")
-            {
-                ConfigManager.SetValue("pathOrigin", path);
-            }
+            ConfigManager.SetValue("pathOrigin", path);
+
         }
 
         public static void SaveCurrentConfig(string name)
         {
             string value = ConfigManager.GetValue("currentConfig", "none");
 
-            ConfigManager.SetValue("pathOrigin", name);
+            ConfigManager.SetValue("currentConfig", name);
         }
     }
 }

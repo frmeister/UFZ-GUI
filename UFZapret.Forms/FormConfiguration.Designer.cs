@@ -57,7 +57,7 @@
             config_button3 = new Button();
             config_button2 = new Button();
             config_button1 = new Button();
-            config_textBoxVersionMaster = new TextBox();
+            config_textBoxConfigMaster = new TextBox();
             config_buttonUpdate = new Button();
             config_buttonCancel = new Button();
             config_buttonSave = new Button();
@@ -82,7 +82,7 @@
             // config_buttonChangeCfg
             // 
             config_buttonChangeCfg.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            config_buttonChangeCfg.Location = new Point(531, 0);
+            config_buttonChangeCfg.Location = new Point(531, 3);
             config_buttonChangeCfg.Name = "config_buttonChangeCfg";
             config_buttonChangeCfg.Size = new Size(91, 66);
             config_buttonChangeCfg.TabIndex = 2;
@@ -99,7 +99,7 @@
             config_textBoxInfo.Name = "config_textBoxInfo";
             config_textBoxInfo.Size = new Size(252, 63);
             config_textBoxInfo.TabIndex = 0;
-            config_textBoxInfo.Text = "Текущий выбраный конфиг:\r\n";
+            config_textBoxInfo.Text = "Текущая версия:\r\n\r\n";
             // 
             // config_buttonAutoCfg
             // 
@@ -139,7 +139,7 @@
             config_panelToolBox.Controls.Add(config_button2);
             config_panelToolBox.Controls.Add(config_button1);
             config_panelToolBox.Controls.Add(config_buttonAutoCfg);
-            config_panelToolBox.Controls.Add(config_textBoxVersionMaster);
+            config_panelToolBox.Controls.Add(config_textBoxConfigMaster);
             config_panelToolBox.Controls.Add(config_buttonUpdate);
             config_panelToolBox.Controls.Add(config_buttonCancel);
             config_panelToolBox.Controls.Add(config_buttonSave);
@@ -367,21 +367,21 @@
             config_button1.Text = "config_button1";
             config_button1.UseVisualStyleBackColor = true;
             // 
-            // config_textBoxVersionMaster
+            // config_textBoxConfigMaster
             // 
-            config_textBoxVersionMaster.Enabled = false;
-            config_textBoxVersionMaster.Font = new Font("Meiryo", 12F);
-            config_textBoxVersionMaster.Location = new Point(3, 3);
-            config_textBoxVersionMaster.Multiline = true;
-            config_textBoxVersionMaster.Name = "config_textBoxVersionMaster";
-            config_textBoxVersionMaster.Size = new Size(416, 83);
-            config_textBoxVersionMaster.TabIndex = 2;
-            config_textBoxVersionMaster.Text = "Текущая версия:\r\n";
+            config_textBoxConfigMaster.Enabled = false;
+            config_textBoxConfigMaster.Font = new Font("Meiryo", 12F);
+            config_textBoxConfigMaster.Location = new Point(3, 3);
+            config_textBoxConfigMaster.Multiline = true;
+            config_textBoxConfigMaster.Name = "config_textBoxConfigMaster";
+            config_textBoxConfigMaster.Size = new Size(416, 83);
+            config_textBoxConfigMaster.TabIndex = 2;
+            config_textBoxConfigMaster.Text = "Выбранный конфиг:";
             // 
             // config_buttonUpdate
             // 
             config_buttonUpdate.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            config_buttonUpdate.Location = new Point(425, 6);
+            config_buttonUpdate.Location = new Point(9, 606);
             config_buttonUpdate.Name = "config_buttonUpdate";
             config_buttonUpdate.Size = new Size(100, 80);
             config_buttonUpdate.TabIndex = 1;
@@ -454,7 +454,7 @@
         private Splitter config_splitter;
         private Splitter splitter1;
         private Button config_buttonSave;
-        private TextBox config_textBoxVersionMaster;
+        private TextBox config_textBoxConfigMaster;
         private Button config_buttonUpdate;
         private Button config_buttonCancel;
         private Button config_buttonAutoCfg;

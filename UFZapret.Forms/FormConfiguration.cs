@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml.Linq;
+using UFZ.Lib;
 using UFZapret.Lib;
 
 namespace UFZapret.Forms
@@ -15,6 +16,8 @@ namespace UFZapret.Forms
     public partial class FormConfiguration : Form
     {
         string folderPath;
+        string configName;
+
         private List<Button> configButtons; // Список всех кнопок
         private List<string> batFiles; // Список найденных .bat файлов
         public FormConfiguration()
@@ -24,6 +27,8 @@ namespace UFZapret.Forms
             InitializeButtonsList();
 
             CfgButtonsDisable();
+
+            DrawCurrentPath();
         }
 
         #region LOGIC
@@ -36,8 +41,13 @@ namespace UFZapret.Forms
                 config_button9, config_button10, config_button11, config_button12,
                 config_button13, config_button14, config_button15, config_button16,
                 config_button17, config_button18, config_button19, config_button20,
-                config_button21, config_button22, config_button23, config_button24
+                config_button21, config_button22, config_button23, config_button24,
             };
+                
+            foreach (var button in configButtons)
+            {
+                button.Click += ConfigButton_Click;
+            }
         }
 
         // Disabling all func buttons for configs inside zapret
@@ -54,19 +64,28 @@ namespace UFZapret.Forms
 
         private void CfgButtonsEnableAndFill(List<string> files)
         {
-            // Сначала отключаем все
             CfgButtonsDisable();
 
-            // Включаем и заполняем только нужное количество
             for (int i = 0; i < Math.Min(files.Count, configButtons.Count); i++)
             {
                 string filePath = files[i];
                 string fileName = Path.GetFileNameWithoutExtension(filePath);
 
                 configButtons[i].Text = fileName;
-                configButtons[i].Tag = filePath; // Сохраняем полный путь в Tag
+                configButtons[i].Tag = filePath;
                 configButtons[i].Visible = true;
                 configButtons[i].Enabled = true;
+
+                // Проверяем, должна ли эта кнопка быть выбрана
+                if (configName != "none")
+                {
+                    string configNameWithoutExtension = configName.Replace(".bat", "");
+                    if (fileName == configNameWithoutExtension)
+                    {
+                        configButtons[i].Enabled = false;
+                        configButtons[i].BackColor = Color.LightGray;
+                    }
+                }
             }
         }
 
@@ -102,27 +121,66 @@ namespace UFZapret.Forms
                 return new List<string>();
             }
         }
+
+        private void DrawCurrentPath()
+        {
+            folderPath = ConfigManager.GetValue("pathOrigin", "none");
+            configName = ConfigManager.GetValue("currentConfig", "none"); // ← ДО заполнения кнопок!
+
+            if (folderPath != "none" && Directory.Exists(folderPath))
+            {
+                // Сначала получаем список файлов
+                var files = GetBatFiles(folderPath);
+
+                // Заполняем кнопки
+                CfgButtonsEnableAndFill(files);
+
+                config_textBoxInfo.Text = $"Directory found!";
+
+                // Теперь ищем и деактивируем
+                if (configName != "none")
+                {
+                    string configNameWithoutExtension = configName.Replace(".bat", "");
+
+                    foreach (var button in configButtons)
+                    {
+                        if (button.Visible && button.Text == configNameWithoutExtension)
+                        {
+                            button.Enabled = false;
+                            button.BackColor = Color.LightGray;
+                            config_textBoxConfigMaster.Text = $"Выбран конфиг:\n{button.Text}"; // NOT WORKING
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                config_textBoxInfo.Text = "Папка Zapret не настроена. Выберите папку.";
+            }
+        }
+
         #endregion
 
         private void config_buttonSave_Click(object sender, EventArgs e)
         {
             try
-            {
+            {/*
                 bool isCfgSelected = false;
-                string fileName;
                 foreach (var button in configButtons)
                 {
                     if (button.Enabled == false)
                     {
-                        isCfgSelected = true;
-
-                        fileName = button.Text;
-                        DataService.SaveCurrentConfig(fileName);
+                        DataService.SaveCurrentConfig(configName);
                     }
                 }
+                */
+                
 
                 // Saving the folder path into Config.cfg
                 DataService.SaveFolderPath(folderPath);
+
+                DataService.SaveCurrentConfig(configName);
 
 
             }
@@ -148,7 +206,40 @@ namespace UFZapret.Forms
         }
 
         #region ConfigButtons
+        private void ConfigButton_Click(object sender, EventArgs e)
+        {
+            Button clickedButton = sender as Button;
 
+            // Проверяем, что это кнопка конфига (по имени)
+            if (clickedButton == null || !clickedButton.Name.StartsWith("config_button") ||
+                clickedButton.Name.EndsWith("Save") || clickedButton.Name.EndsWith("Cancel") ||
+                clickedButton.Name.EndsWith("ChangeCfg") || clickedButton.Name.EndsWith("Update") ||
+                clickedButton.Name.EndsWith("AutoCfg"))
+                return;
+
+            // 1. Сначала активируем ВСЕ остальные кнопки (снимаем предыдущий выбор)
+            foreach (var button in configButtons)
+            {
+                // Пропускаем нажатую кнопку
+                if (button == clickedButton) continue;
+
+                // Активируем все остальные кнопки
+                if (button.Visible && !button.Enabled)
+                {
+                    button.Enabled = true;
+                    button.BackColor = SystemColors.Control; // Возвращаем стандартный цвет
+                }
+            }
+
+            // 2. Деактивируем только нажатую кнопку
+            clickedButton.Enabled = false;
+
+            // 3. Сохраняем выбор
+            configName = clickedButton.Text + ".bat";
+
+            // 4. Показываем информацию о выборе
+            config_textBoxConfigMaster.Text = $"Выбран конфиг:\n{clickedButton.Text}";
+        }
         #endregion
     }
 }
