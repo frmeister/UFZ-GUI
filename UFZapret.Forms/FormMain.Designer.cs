@@ -100,6 +100,7 @@
             // 
             // buttonStart
             // 
+            buttonStart.Enabled = false;
             buttonStart.Image = (Image)resources.GetObject("buttonStart.Image");
             buttonStart.Location = new Point(260, 130);
             buttonStart.Name = "buttonStart";
