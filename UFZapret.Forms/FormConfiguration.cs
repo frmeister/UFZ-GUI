@@ -165,24 +165,14 @@ namespace UFZapret.Forms
         private void config_buttonSave_Click(object sender, EventArgs e)
         {
             try
-            {/*
-                bool isCfgSelected = false;
-                foreach (var button in configButtons)
-                {
-                    if (button.Enabled == false)
-                    {
-                        DataService.SaveCurrentConfig(configName);
-                    }
-                }
-                */
-                
-
+            {
                 // Saving the folder path into Config.cfg
                 DataService.SaveFolderPath(folderPath);
 
                 DataService.SaveCurrentConfig(configName);
 
-
+                FormMain formMain = new FormMain();
+                formMain.CheckIsConfigAvalible();
             }
             catch
             {

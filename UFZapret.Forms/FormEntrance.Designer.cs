@@ -29,11 +29,12 @@
         private void InitializeComponent()
         {
             entrance_buttonClose = new Button();
+            entrance_folderBrowserDialogHello = new FolderBrowserDialog();
             SuspendLayout();
             // 
             // entrance_buttonClose
             // 
-            entrance_buttonClose.Location = new Point(310, 217);
+            entrance_buttonClose.Location = new Point(541, 310);
             entrance_buttonClose.Name = "entrance_buttonClose";
             entrance_buttonClose.Size = new Size(151, 131);
             entrance_buttonClose.TabIndex = 0;
@@ -58,5 +59,6 @@
         #endregion
 
         private Button entrance_buttonClose;
+        private FolderBrowserDialog entrance_folderBrowserDialogHello;
     }
 }

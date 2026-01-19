@@ -69,7 +69,7 @@ namespace UFZapret.Forms
             textBoxStatus.Text = message;
         }
 
-        private void CheckIsConfigAvalible()
+        public void CheckIsConfigAvalible()
         {
             string directory = ConfigManager.GetValue("pathOrigin", "none");
             string config = ConfigManager.GetValue("currentConfig", "none");
