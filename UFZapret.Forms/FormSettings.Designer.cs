@@ -31,6 +31,9 @@
             settings_panelGeneral = new Panel();
             settings_textBoxInfo = new TextBox();
             settings_panelMain = new Panel();
+            settings_checkBoxStartMinimized = new CheckBox();
+            settings_checkBoxAutoStart = new CheckBox();
+            settings_textBoxAutoStart = new TextBox();
             settings_textBoxVersion = new TextBox();
             settings_buttonCancel = new Button();
             settings_buttonSave = new Button();
@@ -62,6 +65,9 @@
             // settings_panelMain
             // 
             settings_panelMain.BackColor = Color.FromArgb(192, 255, 192);
+            settings_panelMain.Controls.Add(settings_checkBoxStartMinimized);
+            settings_panelMain.Controls.Add(settings_checkBoxAutoStart);
+            settings_panelMain.Controls.Add(settings_textBoxAutoStart);
             settings_panelMain.Controls.Add(settings_textBoxVersion);
             settings_panelMain.Controls.Add(settings_buttonCancel);
             settings_panelMain.Controls.Add(settings_buttonSave);
@@ -73,6 +79,37 @@
             settings_panelMain.Size = new Size(634, 661);
             settings_panelMain.TabIndex = 0;
             // 
+            // settings_checkBoxStartMinimized
+            // 
+            settings_checkBoxStartMinimized.AutoSize = true;
+            settings_checkBoxStartMinimized.Location = new Point(346, 99);
+            settings_checkBoxStartMinimized.Name = "settings_checkBoxStartMinimized";
+            settings_checkBoxStartMinimized.Size = new Size(82, 19);
+            settings_checkBoxStartMinimized.TabIndex = 6;
+            settings_checkBoxStartMinimized.Text = "Minimized";
+            settings_checkBoxStartMinimized.UseVisualStyleBackColor = true;
+            // 
+            // settings_checkBoxAutoStart
+            // 
+            settings_checkBoxAutoStart.AutoSize = true;
+            settings_checkBoxAutoStart.Location = new Point(264, 99);
+            settings_checkBoxAutoStart.Name = "settings_checkBoxAutoStart";
+            settings_checkBoxAutoStart.Size = new Size(76, 19);
+            settings_checkBoxAutoStart.TabIndex = 5;
+            settings_checkBoxAutoStart.Text = "AutoStart";
+            settings_checkBoxAutoStart.UseVisualStyleBackColor = true;
+            settings_checkBoxAutoStart.CheckedChanged += settings_checkBoxAutoStart_CheckedChanged;
+            // 
+            // settings_textBoxAutoStart
+            // 
+            settings_textBoxAutoStart.Enabled = false;
+            settings_textBoxAutoStart.Location = new Point(3, 97);
+            settings_textBoxAutoStart.Multiline = true;
+            settings_textBoxAutoStart.Name = "settings_textBoxAutoStart";
+            settings_textBoxAutoStart.Size = new Size(237, 81);
+            settings_textBoxAutoStart.TabIndex = 4;
+            settings_textBoxAutoStart.Text = "Добавление программы в автозапуск:\r\nStatus:";
+            // 
             // settings_textBoxVersion
             // 
             settings_textBoxVersion.Enabled = false;
@@ -81,6 +118,7 @@
             settings_textBoxVersion.Name = "settings_textBoxVersion";
             settings_textBoxVersion.Size = new Size(237, 82);
             settings_textBoxVersion.TabIndex = 3;
+            settings_textBoxVersion.Text = "Current Version of program:";
             // 
             // settings_buttonCancel
             // 
@@ -100,6 +138,7 @@
             settings_buttonSave.TabIndex = 2;
             settings_buttonSave.Text = "Save";
             settings_buttonSave.UseVisualStyleBackColor = true;
+            settings_buttonSave.Click += settings_buttonSave_Click;
             // 
             // settings_buttonUpdate
             // 
@@ -137,6 +176,11 @@
             ResumeLayout(false);
         }
 
+        private void Settings_checkBoxAutoStart_CheckedChanged(object sender, EventArgs e)
+        {
+            throw new NotImplementedException();
+        }
+
         #endregion
 
         private Panel settings_panelGeneral;
@@ -147,5 +191,8 @@
         private Button settings_buttonSave;
         private Button settings_buttonUpdate;
         private Splitter settings_splitter;
+        private CheckBox settings_checkBoxAutoStart;
+        private TextBox settings_textBoxAutoStart;
+        private CheckBox settings_checkBoxStartMinimized;
     }
 }

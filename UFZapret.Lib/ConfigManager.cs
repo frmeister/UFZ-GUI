@@ -130,6 +130,8 @@ namespace UFZ.Lib
                 { "isThisFirstLaunch", "true" },
                 { "pathOrigin", "none" },
                 { "currentConfig", "none" },
+                { "autoStart", "false" },
+                { "startupArgs", "none" },
                 { "appVersion", "0.21" },
                 // ... другие параметры по умолчанию
             };

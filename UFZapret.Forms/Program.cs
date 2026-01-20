@@ -15,7 +15,7 @@ namespace UFZapret.Forms
         private static Mutex mutex;
 
         [STAThread]
-        static void Main()
+        static void Main(string[] args)
         {
             DataService ds = new DataService();
 
@@ -82,6 +82,20 @@ namespace UFZapret.Forms
                 ZapretService.ForceStop();
                 mutex?.ReleaseMutex();
             }
+
+            bool startMinimized = args.Contains("--minimized");
+
+            FormMain mainForm = new FormMain();
+
+            if (startMinimized)
+            {
+                // Запускаем скрыто, сразу в трей
+                mainForm.WindowState = FormWindowState.Minimized;
+                mainForm.ShowInTaskbar = false;
+                mainForm.Visible = false;
+            }
+
+            Application.Run(mainForm);
         }
 
         private static void OnApplicationExit(object sender, EventArgs e)

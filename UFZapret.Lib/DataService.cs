@@ -33,5 +33,20 @@ namespace UFZapret.Lib
 
             ConfigManager.SetValue("currentConfig", name);
         }
+
+        public static bool GetAutoStart()
+        {
+            return ConfigManager.GetValue("autoStart", "false") == "true";
+        }
+
+        public static void SetAutoStart(bool enabled)
+        {
+            ConfigManager.SetValue("autoStart", enabled ? "true" : "false");
+        }
+
+        public static string GetStartupArguments()
+        {
+            return ConfigManager.GetValue("startupArgs", "--minimized");
+        }
     }
 }

@@ -11,6 +11,8 @@ namespace UFZapret.Forms
         {
             InitializeComponent();
 
+            TrayStartup();
+
             CheckIsConfigAvalible();
 
             InitializeTrayIcon();
@@ -231,6 +233,20 @@ namespace UFZapret.Forms
                         UpdateStatus("Закрытие отменено");
                         return;
                 }
+            }
+        }
+
+        private void TrayStartup()
+        {
+            string[] args = Environment.GetCommandLineArgs();
+            bool startMinimized = args.Contains("--minimized");
+
+            if (startMinimized)
+            {
+                this.Load += (s, e) => {
+                    // Сразу сворачиваем в трей
+                    MinimizeToTray();
+                };
             }
         }
 
