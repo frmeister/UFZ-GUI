@@ -43,7 +43,7 @@ namespace UFZapret.Forms
                 config_button17, config_button18, config_button19, config_button20,
                 config_button21, config_button22, config_button23, config_button24,
             };
-                
+
             foreach (var button in configButtons)
             {
                 button.Click += ConfigButton_Click;
@@ -231,5 +231,6 @@ namespace UFZapret.Forms
             config_textBoxConfigMaster.Text = $"Выбран конфиг:\n{clickedButton.Text}";
         }
         #endregion
+
     }
 }

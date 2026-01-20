@@ -13,9 +13,10 @@
         /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
         protected override void Dispose(bool disposing)
         {
-            if (disposing && (components != null))
+            if (disposing)
             {
-                components.Dispose();
+                trayIcon?.Dispose();
+                trayMenu?.Dispose();
             }
             base.Dispose(disposing);
         }
@@ -36,6 +37,7 @@
             panelStatus = new Panel();
             buttonStart = new Button();
             splitter1 = new Splitter();
+            buttonSettings = new Button();
             panelGeneral.SuspendLayout();
             panelStatus.SuspendLayout();
             SuspendLayout();
@@ -43,6 +45,7 @@
             // panelGeneral
             // 
             panelGeneral.BackColor = Color.FromArgb(255, 255, 192);
+            panelGeneral.Controls.Add(buttonSettings);
             panelGeneral.Controls.Add(textBoxStatus);
             panelGeneral.Controls.Add(buttonConfiguration);
             panelGeneral.Controls.Add(textBoxInfo);
@@ -56,7 +59,7 @@
             // 
             textBoxStatus.Enabled = false;
             textBoxStatus.Font = new Font("Meiryo UI", 12F);
-            textBoxStatus.Location = new Point(361, 3);
+            textBoxStatus.Location = new Point(231, 3);
             textBoxStatus.Multiline = true;
             textBoxStatus.Name = "textBoxStatus";
             textBoxStatus.Size = new Size(303, 87);
@@ -83,7 +86,7 @@
             textBoxInfo.Location = new Point(3, 3);
             textBoxInfo.Multiline = true;
             textBoxInfo.Name = "textBoxInfo";
-            textBoxInfo.Size = new Size(352, 87);
+            textBoxInfo.Size = new Size(222, 87);
             textBoxInfo.TabIndex = 0;
             textBoxInfo.Text = "Тестовая программа, для упрощения работы с Zapret\r\n";
             // 
@@ -118,6 +121,16 @@
             splitter1.TabIndex = 0;
             splitter1.TabStop = false;
             // 
+            // buttonSettings
+            // 
+            buttonSettings.Image = (Image)resources.GetObject("buttonSettings.Image");
+            buttonSettings.Location = new Point(596, 3);
+            buttonSettings.Name = "buttonSettings";
+            buttonSettings.Size = new Size(86, 87);
+            buttonSettings.TabIndex = 3;
+            buttonSettings.UseVisualStyleBackColor = true;
+            buttonSettings.Click += buttonSettings_Click;
+            // 
             // FormMain
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -146,5 +159,6 @@
         private Button buttonConfiguration;
         private TextBox textBoxStatus;
         private Button buttonStart;
+        private Button buttonSettings;
     }
 }

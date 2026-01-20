@@ -1,19 +1,20 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Principal;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace UFZapret.Forms
 {
     public static class ZapretService
     {
-        private static Process batProcess;
-        private static int winwsProcessId = -1;
+        private static Process winwsProcess;
         private static bool isRunning = false;
-        private static Task trackingTask;
+        private static CancellationTokenSource trackingCancellationTokenSource;
+        private static readonly object processLock = new object();
 
         public static bool IsRunning => isRunning;
 
@@ -38,13 +39,24 @@ namespace UFZapret.Forms
                     return false;
                 }
 
-                // Проверяем структуру zapret
                 if (!ValidateZapretStructure(zapretFolder))
                     return false;
 
-                // Запускаем BAT файл
-                Debug.WriteLine("=== Запуск BAT файла ===");
-                return await StartBatProcess(configPath, zapretFolder);
+                string gameFilter = GetGameFilter(zapretFolder);
+                Debug.WriteLine($"GameFilter: {gameFilter}");
+
+                string arguments = await ParseBatArgumentsAsync(configPath, zapretFolder, gameFilter);
+                if (string.IsNullOrEmpty(arguments))
+                {
+                    MessageBox.Show("Не удалось получить аргументы для запуска.",
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return false;
+                }
+
+                Debug.WriteLine($"Аргументы winws.exe: {arguments}");
+
+                string winwsPath = Path.Combine(zapretFolder, "bin", "winws.exe");
+                return await StartWinwsAsync(winwsPath, arguments, zapretFolder);
             }
             catch (Exception ex)
             {
@@ -55,7 +67,7 @@ namespace UFZapret.Forms
             }
         }
 
-        public static async Task<bool> Stop()
+        public static async Task<bool> Stop(bool force = false)
         {
             if (!isRunning)
                 return true;
@@ -63,46 +75,37 @@ namespace UFZapret.Forms
             try
             {
                 Debug.WriteLine("=== Остановка Zapret ===");
+                trackingCancellationTokenSource?.Cancel();
 
-                // 1. Останавливаем процесс winws.exe по ID
-                if (winwsProcessId != -1)
+                Process processToStop = null;
+                lock (processLock)
                 {
-                    try
-                    {
-                        var winwsProcess = Process.GetProcessById(winwsProcessId);
-                        await GracefulShutdown(winwsProcess);
-                    }
-                    catch (ArgumentException)
-                    {
-                        // Процесс уже завершен
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Ошибка остановки winws.exe: {ex.Message}");
-                    }
+                    processToStop = winwsProcess;
                 }
 
-                // 2. Останавливаем BAT процесс
-                if (batProcess != null && !batProcess.HasExited)
+                if (processToStop != null && !processToStop.HasExited)
                 {
-                    await GracefulShutdown(batProcess);
-                    Debug.WriteLine("BAT процесс завершен");
+                    if (force)
+                    {
+                        // Принудительная остановка - сразу убиваем процесс
+                        Debug.WriteLine("Принудительная остановка процесса");
+                        KillProcess(processToStop);
+                    }
+                    else
+                    {
+                        // Грейсфул остановка
+                        await GracefulShutdown(processToStop);
+                    }
+                    Debug.WriteLine("Процесс winws.exe завершен");
                 }
 
-                // 3. На всякий случай останавливаем все процессы zapret
                 KillAllZapretProcesses();
 
-                // 4. Очищаем ссылки
-                winwsProcessId = -1;
-                batProcess = null;
-                isRunning = false;
-
-                // 5. Останавливаем фоновую задачу отслеживания
-                if (trackingTask != null && !trackingTask.IsCompleted)
+                lock (processLock)
                 {
-                    // Даем задаче завершиться
-                    await Task.WhenAny(trackingTask, Task.Delay(2000));
+                    winwsProcess = null;
                 }
+                isRunning = false;
 
                 Debug.WriteLine("Zapret остановлен");
                 return true;
@@ -110,22 +113,79 @@ namespace UFZapret.Forms
             catch (Exception ex)
             {
                 Debug.WriteLine($"Ошибка остановки: {ex.Message}");
-                MessageBox.Show($"Ошибка остановки: {ex.Message}", "Ошибка",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+
+                // Даже при ошибке пытаемся убить все процессы
+                KillAllZapretProcesses();
+                isRunning = false;
+
+                if (!force)
+                {
+                    MessageBox.Show($"Ошибка остановки: {ex.Message}", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
                 return false;
+            }
+        }
+
+
+        public static void ForceStop()
+        {
+            try
+            {
+                Debug.WriteLine("=== Принудительная остановка Zapret ===");
+
+                // Создаем отдельную задачу для принудительной остановки
+                Task.Run(async () =>
+                {
+                    await Stop(force: true);
+                }).Wait(3000); // Ждем максимум 3 секунды
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка принудительной остановки: {ex.Message}");
+                // Последняя попытка - просто убиваем все процессы
+                KillAllZapretProcessesImmediately();
+            }
+        }
+
+        private static void KillAllZapretProcessesImmediately()
+        {
+            string[] processNames = { "winws", "tpws", "dnstls", "nfqws", "cmd", "conhost" };
+
+            Debug.WriteLine("=== Немедленная остановка всех процессов Zapret ===");
+
+            foreach (string name in processNames)
+            {
+                try
+                {
+                    var processes = Process.GetProcessesByName(name);
+                    foreach (var process in processes)
+                    {
+                        try
+                        {
+                            if (!process.HasExited)
+                            {
+                                process.Kill();
+                                Debug.WriteLine($"Убит процесс: {name} (ID: {process.Id})");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Ошибка убийства процесса {name}: {ex.Message}");
+                        }
+                        finally
+                        {
+                            process.Dispose();
+                        }
+                    }
+                }
+                catch { }
             }
         }
 
         public static async Task<bool> Toggle(string zapretFolder, string configName)
         {
-            if (isRunning)
-            {
-                return await Stop();
-            }
-            else
-            {
-                return await Start(zapretFolder, configName);
-            }
+            return isRunning ? await Stop() : await Start(zapretFolder, configName);
         }
 
         // ===== Вспомогательные методы =====
@@ -135,16 +195,14 @@ namespace UFZapret.Forms
             try
             {
                 string[] requiredDirs = { "bin", "lists" };
-                string[] requiredFilesInBin = { "winws.exe", "service.bat" };
 
                 foreach (var dir in requiredDirs)
                 {
                     string dirPath = Path.Combine(zapretFolder, dir);
                     if (!Directory.Exists(dirPath))
                     {
-                        MessageBox.Show($"Отсутствует папка: {dir}\n\n" +
-                                      "Убедитесь, что вы выбрали правильную папку с zapret.",
-                                      "Ошибка структуры", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show($"Отсутствует папка: {dir}\n\nУбедитесь, что выбрали правильную папку с zapret.",
+                            "Ошибка структуры", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return false;
                     }
                 }
@@ -158,194 +216,236 @@ namespace UFZapret.Forms
             }
         }
 
-        private static async Task<bool> StartBatProcess(string batPath, string workingDir)
+        private static async Task EnableTcpTimestampsAsync()
         {
             try
             {
-                Debug.WriteLine($"Запуск BAT: {batPath}");
-                Debug.WriteLine($"Рабочая папка: {workingDir}");
+                Debug.WriteLine("=== Включение TCP timestamps ===");
 
-                ProcessStartInfo startInfo;
-
-                if (IsRunningAsAdmin())
+                using (var process = Process.Start(new ProcessStartInfo
                 {
-                    startInfo = new ProcessStartInfo
-                    {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c \"{batPath}\"",
-                        WorkingDirectory = workingDir,
-                        CreateNoWindow = true,
-                        UseShellExecute = false,
-                        WindowStyle = ProcessWindowStyle.Hidden
-                    };
-
-                    batProcess = Process.Start(startInfo);
+                    FileName = "netsh",
+                    Arguments = "interface tcp set global timestamps=enabled",
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }))
+                {
+                    await Task.Run(() => process.WaitForExit(3000));
+                    Debug.WriteLine(process.ExitCode == 0
+                        ? "TCP timestamps включены"
+                        : $"Не удалось включить TCP timestamps. Код: {process.ExitCode}");
                 }
-                else
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка включения TCP timestamps: {ex.Message}");
+            }
+        }
+
+        private static string GetGameFilter(string zapretFolder)
+        {
+            try
+            {
+                string gameFilterFile = Path.Combine(zapretFolder, "utils", "game_filter.enabled");
+                return File.Exists(gameFilterFile) ? "1024-65535" : "12";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка получения GameFilter: {ex.Message}");
+                return "12";
+            }
+        }
+
+        private static async Task<string> ParseBatArgumentsAsync(string batPath, string zapretFolder, string gameFilter)
+        {
+            try
+            {
+                Debug.WriteLine($"Парсинг BAT файла: {batPath}");
+
+                string[] lines = File.ReadAllLines(batPath, Encoding.GetEncoding(65001));
+                string binPath = Path.Combine(zapretFolder, "bin") + "\\";
+                string listsPath = Path.Combine(zapretFolder, "lists") + "\\";
+
+                for (int i = 0; i < lines.Length; i++)
                 {
-                    startInfo = new ProcessStartInfo
+                    string line = lines[i].Trim();
+
+                    if (line.Contains("winws.exe", StringComparison.OrdinalIgnoreCase))
                     {
-                        FileName = "cmd.exe",
-                        Arguments = $"/c \"{batPath}\"",
-                        WorkingDirectory = workingDir,
-                        Verb = "runas",
-                        UseShellExecute = true,
-                        CreateNoWindow = false,
-                        WindowStyle = ProcessWindowStyle.Normal
-                    };
+                        if (line.StartsWith("start", StringComparison.OrdinalIgnoreCase))
+                        {
+                            int winwsIndex = line.IndexOf("winws.exe", StringComparison.OrdinalIgnoreCase);
+                            if (winwsIndex > 0) line = line.Substring(winwsIndex);
+                        }
 
-                    batProcess = Process.Start(startInfo);
-                }
+                        int exeEndIndex = line.IndexOf("winws.exe", StringComparison.OrdinalIgnoreCase) + "winws.exe".Length;
+                        string args = line.Substring(exeEndIndex).Trim();
 
-                if (batProcess != null)
-                {
-                    batProcess.EnableRaisingEvents = true;
-                    batProcess.Exited += (s, e) =>
-                    {
-                        Debug.WriteLine("BAT процесс завершился");
-                        // Если BAT завершился, это не значит, что winws.exe завершился.
-                        // Мы не меняем isRunning, потому что winws.exe может работать.
-                    };
+                        if (args.StartsWith("\"")) args = args.TrimStart('\"');
 
-                    // Ждем, чтобы BAT запустил winws.exe
-                    await Task.Delay(2000);
+                        StringBuilder multiLineArgs = new StringBuilder(args);
 
-                    // Ищем процесс winws.exe
-                    var winwsProcess = await FindWinwsProcessAsync();
+                        for (int j = i + 1; j < lines.Length; j++)
+                        {
+                            string nextLine = lines[j].Trim();
+                            if (nextLine.EndsWith("^"))
+                            {
+                                multiLineArgs.Append(" " + nextLine.TrimEnd('^', ' ').Trim());
+                                i = j;
+                            }
+                            else
+                            {
+                                multiLineArgs.Append(" " + nextLine);
+                                i = j;
+                                break;
+                            }
+                        }
 
-                    if (winwsProcess != null)
-                    {
-                        winwsProcessId = winwsProcess.Id;
-                        Debug.WriteLine($"Найден процесс winws.exe (ID: {winwsProcessId})");
+                        string result = multiLineArgs.ToString().Trim();
 
-                        // Запускаем фоновую задачу для отслеживания завершения winws.exe
-                        trackingTask = TrackWinwsProcessAsync(winwsProcessId);
+                        result = result.Replace("\"%BIN%", binPath)
+                                     .Replace("\"%LISTS%", listsPath)
+                                     .Replace("%BIN%", binPath)
+                                     .Replace("%LISTS%", listsPath)
+                                     .Replace("%GameFilter%", gameFilter);
 
-                        isRunning = true;
-                        return true;
+                        string basePath = zapretFolder + "\\";
+                        if (result.Contains(basePath + basePath))
+                            result = result.Replace(basePath + basePath, basePath);
+
+                        result = result.Replace("\"", "").Trim();
+
+                        Debug.WriteLine($"Парсинг завершен: {result}");
+                        return result;
                     }
-                    else
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Ошибка парсинга BAT: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static async Task<bool> StartWinwsAsync(string winwsPath, string arguments, string workingDir)
+        {
+            try
+            {
+                Debug.WriteLine($"Запуск winws.exe: {winwsPath}\nАргументы: {arguments}\nРабочая папка: {workingDir}");
+
+                await EnableTcpTimestampsAsync();
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = winwsPath,
+                    Arguments = arguments,
+                    WorkingDirectory = workingDir,
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                };
+
+                try
+                {
+                    lock (processLock)
                     {
-                        Debug.WriteLine("Процесс winws.exe не найден после запуска BAT");
-                        MessageBox.Show("Не удалось запустить zapret.\n" +
-                                      "Процесс winws.exe не был запущен.",
-                                      "Ошибка запуска", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        winwsProcess = Process.Start(startInfo);
+                    }
+                }
+                catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
+                {
+                    Debug.WriteLine("Пользователь отказался от UAC");
+                    MessageBox.Show("Для запуска zapret требуются права администратора.",
+                        "Требуются права", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return false;
+                }
+
+                if (winwsProcess != null)
+                {
+                    winwsProcess.EnableRaisingEvents = true;
+                    winwsProcess.Exited += (s, e) =>
+                    {
+                        lock (processLock)
+                        {
+                            isRunning = false;
+                            winwsProcess = null;
+                        }
+                        Debug.WriteLine("Процесс winws.exe завершился");
+                    };
+
+                    isRunning = true;
+
+                    // Даем время процессу запуститься
+                    await Task.Delay(1000);
+
+                    if (winwsProcess.HasExited)
+                    {
+                        Debug.WriteLine($"Winws.exe завершился с кодом: {winwsProcess.ExitCode}");
+                        isRunning = false;
+                        winwsProcess = null;
+
+                        MessageBox.Show($"Winws.exe завершился с ошибкой.\nВозможно, неверные аргументы или конфигурация.",
+                            "Ошибка запуска", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         return false;
                     }
+
+                    StartProcessTracking(winwsProcess);
+                    Debug.WriteLine($"Процесс winws.exe запущен (ID: {winwsProcess.Id})");
+                    return true;
                 }
 
                 return false;
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Ошибка запуска BAT: {ex.Message}");
-                MessageBox.Show($"Не удалось запустить конфигурацию:\n{ex.Message}",
-                    "Ошибка запуска", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Debug.WriteLine($"Ошибка запуска winws.exe: {ex.Message}");
+                MessageBox.Show($"Ошибка запуска: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
             }
         }
 
-        private static async Task<Process> FindWinwsProcessAsync()
+        private static void StartProcessTracking(Process process)
         {
-            try
+            trackingCancellationTokenSource = new CancellationTokenSource();
+            var token = trackingCancellationTokenSource.Token;
+
+            Task.Run(async () =>
             {
-                // Даем процессу время запуститься
-                await Task.Delay(1000);
-
-                // Ищем процесс winws.exe
-                var processes = Process.GetProcessesByName("winws");
-                if (processes.Length > 0)
+                while (!token.IsCancellationRequested)
                 {
-                    // Берем самый свежий процесс (последний запущенный)
-                    return processes.OrderByDescending(p => p.StartTime).FirstOrDefault();
-                }
+                    await Task.Delay(2000, token);
 
-                // Ищем также в названии "tpws", "dnstls" - другие компоненты zapret
-                var allProcesses = Process.GetProcesses();
-                foreach (var process in allProcesses)
-                {
                     try
                     {
-                        if (process.ProcessName.Contains("winws") ||
-                            process.ProcessName.Contains("tpws") ||
-                            process.ProcessName.Contains("dnstls") ||
-                            process.ProcessName.Contains("nfqws"))
+                        bool shouldExit = false;
+                        lock (processLock)
                         {
-                            return process;
-                        }
-                    }
-                    catch
-                    {
-                        // Пропускаем процессы, к которым нет доступа
-                        continue;
-                    }
-                }
-
-                return null;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Ошибка поиска процесса winws: {ex.Message}");
-                return null;
-            }
-        }
-
-        private static async Task TrackWinwsProcessAsync(int winwsProcessId)
-        {
-            try
-            {
-                while (isRunning)
-                {
-                    await Task.Delay(1000); // Проверяем каждую секунду
-
-                    // Проверяем, существует ли процесс с таким ID
-                    bool processExists = false;
-                    try
-                    {
-                        var process = Process.GetProcessById(winwsProcessId);
-                        processExists = true;
-                        process.Dispose();
-                    }
-                    catch (ArgumentException)
-                    {
-                        // Процесс не найден, значит завершен
-                        processExists = false;
-                    }
-
-                    if (!processExists)
-                    {
-                        // Процесс завершен
-                        Debug.WriteLine("Процесс winws.exe завершился (отслежено в фоне)");
-                        isRunning = false;
-                        winwsProcessId = -1;
-
-                        // Также убиваем batProcess, если он еще жив
-                        if (batProcess != null && !batProcess.HasExited)
-                        {
-                            try
+                            if (winwsProcess == null || winwsProcess.Id != process.Id)
+                                shouldExit = true;
+                            else if (process.HasExited)
                             {
-                                batProcess.Kill();
+                                Debug.WriteLine("Процесс winws.exe завершился (отслеживание)");
+                                isRunning = false;
+                                winwsProcess = null;
+                                shouldExit = true;
                             }
-                            catch { }
                         }
-                        batProcess = null;
+
+                        if (shouldExit) break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Ошибка отслеживания процесса: {ex.Message}");
                         break;
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Ошибка в фоновом отслеживании: {ex.Message}");
-            }
-        }
-
-        private static bool IsRunningAsAdmin()
-        {
-            using (var identity = WindowsIdentity.GetCurrent())
-            {
-                var principal = new WindowsPrincipal(identity);
-                return principal.IsInRole(WindowsBuiltInRole.Administrator);
-            }
+            }, token);
         }
 
         private static async Task GracefulShutdown(Process process)
@@ -355,15 +455,10 @@ namespace UFZapret.Forms
 
             try
             {
-                // Пытаемся корректно завершить процесс
                 if (!process.CloseMainWindow())
                 {
-                    // Если не получилось, ждем и принудительно завершаем
                     await Task.Delay(1000);
-                    if (!process.HasExited)
-                    {
-                        process.Kill();
-                    }
+                    if (!process.HasExited) process.Kill();
                 }
 
                 await Task.Run(() => process.WaitForExit(3000));
@@ -377,25 +472,18 @@ namespace UFZapret.Forms
 
         private static void KillAllZapretProcesses()
         {
-            string[] processNames = { "winws", "tpws", "dnstls", "zapret", "nfqws", "cmd", "conhost" };
+            string[] processNames = { "winws", "tpws", "dnstls", "nfqws" };
 
             foreach (string name in processNames)
             {
                 try
                 {
-                    var processes = Process.GetProcessesByName(name);
-                    foreach (var process in processes)
+                    foreach (var process in Process.GetProcessesByName(name))
                     {
-                        // Не убиваем текущие процессы, если они еще живы
-                        if (batProcess != null && process.Id == batProcess.Id)
+                        lock (processLock)
                         {
-                            continue;
-                        }
-
-                        // Не убиваем winwsProcess по ID, потому что мы его уже убили
-                        if (winwsProcessId != -1 && process.Id == winwsProcessId)
-                        {
-                            continue;
+                            if (winwsProcess != null && process.Id == winwsProcess.Id)
+                                continue;
                         }
 
                         KillProcess(process);
