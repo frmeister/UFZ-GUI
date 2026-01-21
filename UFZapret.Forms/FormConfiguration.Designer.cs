@@ -64,6 +64,7 @@
             config_splitter = new Splitter();
             splitter1 = new Splitter();
             config_folderBrowserDialogCfg = new FolderBrowserDialog();
+            config_buttonDownload = new Button();
             config_panelGeneral.SuspendLayout();
             config_panelToolBox.SuspendLayout();
             SuspendLayout();
@@ -71,6 +72,7 @@
             // config_panelGeneral
             // 
             config_panelGeneral.BackColor = Color.FromArgb(255, 255, 192);
+            config_panelGeneral.Controls.Add(config_buttonDownload);
             config_panelGeneral.Controls.Add(config_buttonChangeCfg);
             config_panelGeneral.Controls.Add(config_textBoxInfo);
             config_panelGeneral.Dock = DockStyle.Top;
@@ -430,6 +432,19 @@
             splitter1.TabIndex = 0;
             splitter1.TabStop = false;
             // 
+            // config_buttonDownload
+            // 
+            config_buttonDownload.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            config_buttonDownload.Enabled = false;
+            config_buttonDownload.Location = new Point(434, 3);
+            config_buttonDownload.Name = "config_buttonDownload";
+            config_buttonDownload.Size = new Size(91, 66);
+            config_buttonDownload.TabIndex = 2;
+            config_buttonDownload.Text = "Download";
+            config_buttonDownload.UseVisualStyleBackColor = true;
+            config_buttonDownload.Visible = false;
+            config_buttonDownload.Click += config_buttonDownload_Click;
+            // 
             // FormConfiguration
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -487,5 +502,6 @@
         private Button config_button3;
         private Button config_button2;
         private Button config_button1;
+        private Button config_buttonDownload;
     }
 }

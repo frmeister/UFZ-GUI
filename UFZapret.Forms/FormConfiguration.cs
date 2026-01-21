@@ -31,6 +31,8 @@ namespace UFZapret.Forms
             DrawCurrentPath();
 
             Updater_Origin();
+
+            StatusDownload_Origin();
         }
 
         #region LOGIC
@@ -178,8 +180,6 @@ namespace UFZapret.Forms
             }
         }
 
-
-
         #endregion
 
         #region STATUS
@@ -207,6 +207,15 @@ namespace UFZapret.Forms
                 case 1:
                     config_textBoxConfigMaster.Text += text;
                     break;
+            }
+        }
+
+        private void StatusDownload_Origin()
+        {
+            if (ConfigManager.GetValue("originPath", "none") != "none")
+            {
+                config_buttonDownload.Enabled = true;
+                config_buttonDownload.Visible = true;
             }
         }
 
@@ -296,16 +305,37 @@ namespace UFZapret.Forms
         private void config_buttonChangeCfg_Click(object sender, EventArgs e)
         {
             config_folderBrowserDialogCfg.ShowDialog();
-            string pathDirectory = config_folderBrowserDialogCfg.SelectedPath;
+            folderPath = config_folderBrowserDialogCfg.SelectedPath;
 
-            folderPath = pathDirectory;
-
-            CfgButtonsEnableAndFill(GetBatFiles(pathDirectory));
+            CfgButtonsEnableAndFill(GetBatFiles(folderPath));
         }
 
         private void config_buttonAutoCfg_Click(object sender, EventArgs e)
         {
 
+        }
+
+        private void config_buttonDownload_Click(object sender, EventArgs e)
+        {
+            config_folderBrowserDialogCfg.ShowDialog();
+            folderPath = config_folderBrowserDialogCfg.SelectedPath;
+
+            DataService.CreateNewGitClone_Zapret(folderPath);
+
+            if (!DataService.GitExisting_Zapret(folderPath))
+            {
+                MessageBox.Show("Произошла ошибка, файлы не установлены!",
+                "Ошибка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            }
+            else
+            {
+                ConfigManager.SetValue("pathOrigin", folderPath);
+
+                config_buttonDownload.Enabled = false;
+                config_buttonDownload.Visible = false;
+            }
         }
 
         #endregion
