@@ -104,7 +104,7 @@ namespace UFZapret.Lib
 
         public static bool GitExisting_Zapret(string path)
         {
-            return File.Exists(path + ".gitattributes");
+            return Directory.Exists(path + "\\zapret-discord-youtube\\.github");
         }
 
         public static void UpdateZapret_Origin(string path)
