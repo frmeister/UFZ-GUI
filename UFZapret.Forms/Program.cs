@@ -28,7 +28,7 @@ namespace UFZapret.Forms
 
             ConfigManager.LoadConfig();
 
-            bool isConfigValid = IsConfigValid();
+            bool isConfigValid = ConfigManager.CheckConfigFileExistsAndValid();
             bool startMinimized = args.Contains("--minimized");
 
             // Если это автозапуск и конфиг невалиден, ждем в сплеш-скрине
@@ -51,7 +51,7 @@ namespace UFZapret.Forms
 
                         // Перезагружаем конфиг и обновляем флаг
                         ConfigManager.LoadConfig();
-                        isConfigValid = IsConfigValid(); // Это ключевая строка!
+                        isConfigValid = ConfigManager.CheckConfigFileExistsAndValid(); // Это ключевая строка!
                     }
 
                     // Закрываем сплеш-скрин
@@ -61,7 +61,7 @@ namespace UFZapret.Forms
 
             // ПЕРЕЗАГРУЖАЕМ конфиг ПОСЛЕ ожидания (важно!)
             ConfigManager.LoadConfig();
-            isConfigValid = IsConfigValid(); // Обновляем состояние после ожидания
+            isConfigValid = ConfigManager.CheckConfigFileExistsAndValid(); // Обновляем состояние после ожидания
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

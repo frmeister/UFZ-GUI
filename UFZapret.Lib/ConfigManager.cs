@@ -52,6 +52,48 @@ namespace UFZ.Lib
             }
         }
 
+        // Проверяем конфиг из репозитория
+        public static bool CheckConfigFileExistsAndValid()
+        {
+            try
+            {
+                if (!File.Exists(configPath))
+                    return false;
+
+                var lines = File.ReadAllLines(configPath);
+                bool hasPathOrigin = false;
+                bool hasCurrentConfig = false;
+
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
+                        continue;
+
+                    var parts = trimmed.Split('=', 2);
+                    if (parts.Length == 2)
+                    {
+                        string key = parts[0].Trim();
+                        string value = parts[1].Trim();
+
+                        if (key.Equals("pathOrigin", StringComparison.OrdinalIgnoreCase) &&
+                            value != "none" && Directory.Exists(value))
+                            hasPathOrigin = true;
+
+                        if (key.Equals("currentConfig", StringComparison.OrdinalIgnoreCase) &&
+                            value != "none")
+                            hasCurrentConfig = true;
+                    }
+                }
+
+                return hasPathOrigin && hasCurrentConfig;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         // DEBUG: Path finder method
         public static string GetCurrentConfigPath()
         {
