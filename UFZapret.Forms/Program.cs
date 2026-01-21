@@ -14,7 +14,17 @@ namespace UFZapret.Forms
         static void Main(string[] args)
         {
             DataService ds = new DataService();
-            ConfigManager.LoadConfig();
+            
+            using (var splash = new FormSplash())
+            {
+                splash.Show();
+                Application.DoEvents();
+
+                // Загрузка конфига
+                ConfigManager.LoadConfig();
+
+                Thread.Sleep(1000); // Минимум 1 секунда для показа сплеша
+            }
 
             bool isConfigValid = IsConfigValid();
             bool startMinimized = args.Contains("--minimized");

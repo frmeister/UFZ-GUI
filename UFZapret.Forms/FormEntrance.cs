@@ -132,6 +132,8 @@ namespace UFZapret.Forms
 
             DataService.CreateNewGitClone_Zapret(folderPath);
 
+            folderPath += "\\zapret-discord-youtube";
+
             if (!DataService.GitExisting_Zapret(folderPath))
             {
                 MessageBox.Show("Произошла ошибка, файлы не установлены!",
