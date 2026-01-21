@@ -1,41 +1,66 @@
-﻿// ConfigManager.cs - ОДИН на все приложение
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using UFZapret.Lib;
+using System.Threading.Tasks;
 
 namespace UFZ.Lib
 {
     public static class ConfigManager
     {
         private static string configPath = "Config.cfg";
-        private static Dictionary<string, string> cachedConfig;
-        private static DateTime lastReadTime; // Not intended
-        private static readonly object lockObject = new object();
+        private static Dictionary<string, string> _config;
+        private static readonly object _lock = new object();
+        private static bool _isLoaded = false;
+        private static DateTime _lastLoadTime = DateTime.MinValue;
 
-        // Инициализация при запуске программы
-        static ConfigManager()
+        // Явная инициализация - вызывается в начале программы
+        public static void Initialize()
         {
-            LoadConfig();
+            if (!_isLoaded)
+            {
+                LoadConfig();
+            }
         }
 
-        // Загружаем конфигурацию один раз при запуске
-        public static void LoadConfig()
+        // Загружаем конфиг с блокировкой
+        private static void LoadConfig()
         {
-            lock (lockObject)
+            lock (_lock)
             {
-                cachedConfig = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                _config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                 if (!File.Exists(configPath))
                 {
                     CreateDefaultConfig();
+                    _isLoaded = true;
+                    _lastLoadTime = DateTime.Now;
                     return;
                 }
 
-                var lines = File.ReadAllLines(configPath);
-                foreach (var line in lines)
+                try
+                {
+                    // Читаем весь файл за один раз
+                    string content = File.ReadAllText(configPath);
+                    ParseConfigContent(content);
+                    _isLoaded = true;
+                    _lastLoadTime = DateTime.Now;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Ошибка загрузки конфига: {ex.Message}");
+                    CreateDefaultConfig();
+                }
+            }
+        }
+
+        private static void ParseConfigContent(string content)
+        {
+            using (var reader = new StringReader(content))
+            {
+                string line;
+                while ((line = reader.ReadLine()) != null)
                 {
                     var trimmed = line.Trim();
                     if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
@@ -44,131 +69,105 @@ namespace UFZ.Lib
                     var parts = trimmed.Split('=', 2);
                     if (parts.Length == 2)
                     {
-                        cachedConfig[parts[0].Trim()] = parts[1].Trim();
+                        _config[parts[0].Trim()] = parts[1].Trim();
                     }
                 }
-
-                lastReadTime = File.GetLastWriteTime(configPath);
             }
         }
 
-        // Проверяем конфиг из репозитория
-        public static bool CheckConfigFileExistsAndValid()
+        // Принудительная перезагрузка
+        public static void Reload()
         {
-            try
+            lock (_lock)
             {
-                if (!File.Exists(configPath))
-                    return false;
-
-                var lines = File.ReadAllLines(configPath);
-                bool hasPathOrigin = false;
-                bool hasCurrentConfig = false;
-
-                foreach (var line in lines)
-                {
-                    var trimmed = line.Trim();
-                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
-                        continue;
-
-                    var parts = trimmed.Split('=', 2);
-                    if (parts.Length == 2)
-                    {
-                        string key = parts[0].Trim();
-                        string value = parts[1].Trim();
-
-                        if (key.Equals("pathOrigin", StringComparison.OrdinalIgnoreCase) &&
-                            value != "none" && Directory.Exists(value))
-                            hasPathOrigin = true;
-
-                        if (key.Equals("currentConfig", StringComparison.OrdinalIgnoreCase) &&
-                            value != "none")
-                            hasCurrentConfig = true;
-                    }
-                }
-
-                return hasPathOrigin && hasCurrentConfig;
-            }
-            catch
-            {
-                return false;
+                _isLoaded = false;
+                LoadConfig();
             }
         }
 
-        // DEBUG: Path finder method
-        public static string GetCurrentConfigPath()
-        {
-            // Получаем полный путь к файлу конфигурации
-            return Path.GetFullPath(configPath);
-        }
-
-        // Получить значение параметра (из кэша)
+        // Получение значения
         public static string GetValue(string key, string defaultValue = "")
         {
-            lock (lockObject)
+            if (!_isLoaded) Initialize();
+
+            lock (_lock)
             {
-                // Можно добавить проверку обновления файла, если нужно
-                return cachedConfig.ContainsKey(key) ? cachedConfig[key] : defaultValue;
+                return _config.TryGetValue(key, out var value) ? value : defaultValue;
             }
         }
 
-        // Установить значение параметра
-        public static bool SetValue(string key, string value)
+        // Установка значения с немедленным сохранением
+        public static void SetValue(string key, string value)
         {
-            lock (lockObject)
+            if (!_isLoaded) Initialize();
+
+            lock (_lock)
             {
-                cachedConfig[key] = value;
-
-                // Отложенное сохранение (например, через 2 секунды)
-                // или сохранение в отдельном потоке
-                Task.Run(() => SafeSaveAsync());
-
-                return true;
+                _config[key] = value;
+                SaveConfig();
             }
         }
 
-        private static async Task SafeSaveAsync()
+        // Установка значения с асинхронным сохранением
+        public static void SetValueAsync(string key, string value)
         {
-            string tempFile = Path.GetTempFileName();
+            if (!_isLoaded) Initialize();
 
-            try
+            lock (_lock)
             {
-                // 1. Пишем во временный файл
-                var lines = cachedConfig.Select(kvp => $"{kvp.Key} = {kvp.Value}");
-                await File.WriteAllLinesAsync(tempFile, lines);
+                _config[key] = value;
+            }
 
-                // 2. Атомарно заменяем оригинальный
-                File.Replace(tempFile, configPath, null);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Ошибка: {ex.Message}");
-            }
-            finally
-            {
-                if (File.Exists(tempFile))
-                    File.Delete(tempFile);
-            }
+            Task.Run(() => SaveConfigAsync());
         }
 
-        // Сохранение всех настроек в файл
+        // Синхронное сохранение
         private static void SaveConfig()
         {
+            lock (_lock)
+            {
+                try
+                {
+                    var lines = _config.Select(kvp => $"{kvp.Key} = {kvp.Value}");
+                    File.WriteAllLines(configPath, lines);
+                    _lastLoadTime = DateTime.Now;
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Ошибка сохранения конфига: {ex.Message}");
+                }
+            }
+        }
+
+        // Асинхронное сохранение
+        private static async Task SaveConfigAsync()
+        {
+            Dictionary<string, string> configCopy;
+
+            lock (_lock)
+            {
+                configCopy = new Dictionary<string, string>(_config);
+            }
+
             try
             {
-                var lines = cachedConfig.Select(kvp => $"{kvp.Key} = {kvp.Value}");
-                File.WriteAllLines(configPath, lines);
-                lastReadTime = File.GetLastWriteTime(configPath);
+                var lines = configCopy.Select(kvp => $"{kvp.Key} = {kvp.Value}");
+                await File.WriteAllLinesAsync(configPath, lines);
+
+                lock (_lock)
+                {
+                    _lastLoadTime = DateTime.Now;
+                }
             }
             catch (Exception ex)
             {
-                // Логирование ошибки
-                System.Diagnostics.Debug.WriteLine($"Ошибка сохранения конфигурации: {ex.Message}");
+                Debug.WriteLine($"Ошибка асинхронного сохранения: {ex.Message}");
             }
         }
 
         private static void CreateDefaultConfig()
         {
-            var defaults = new Dictionary<string, string>
+            _config = new Dictionary<string, string>
             {
                 { "isThisFirstLaunch", "true" },
                 { "pathOrigin", "none" },
@@ -176,12 +175,24 @@ namespace UFZ.Lib
                 { "autoStart", "false" },
                 { "startupArgs", "none" },
                 { "appVersion", "0.21" },
-                { "originVersion", "none"}
-                // ... другие параметры по умолчанию
+                { "originVersion", "none" }
             };
 
-            cachedConfig = defaults;
             SaveConfig();
+        }
+
+        // Проверка только параметров автозапуска
+        public static bool IsAutoStartEnabled()
+        {
+            if (!_isLoaded) Initialize();
+            return GetValue("autoStart", "false") == "true";
+        }
+
+        // Получение аргументов автозапуска
+        public static string GetStartupArgs()
+        {
+            if (!_isLoaded) Initialize();
+            return GetValue("startupArgs", "none");
         }
     }
 }

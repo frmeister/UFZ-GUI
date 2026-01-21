@@ -23,6 +23,8 @@ namespace UFZapret.Forms
                 };
             }
 
+            ConfigManager.Reload();
+
             CheckIsConfigAvalible();
 
             InitializeTrayIcon();
