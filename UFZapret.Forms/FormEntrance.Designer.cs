@@ -30,6 +30,7 @@
         {
             entrance_buttonClose = new Button();
             entrance_folderBrowserDialogHello = new FolderBrowserDialog();
+            entrance_buttonDownload = new Button();
             SuspendLayout();
             // 
             // entrance_buttonClose
@@ -42,11 +43,22 @@
             entrance_buttonClose.UseVisualStyleBackColor = true;
             entrance_buttonClose.Click += entrance_buttonClose_Click;
             // 
+            // entrance_buttonDownload
+            // 
+            entrance_buttonDownload.Location = new Point(215, 321);
+            entrance_buttonDownload.Name = "entrance_buttonDownload";
+            entrance_buttonDownload.Size = new Size(157, 120);
+            entrance_buttonDownload.TabIndex = 1;
+            entrance_buttonDownload.Text = "Download";
+            entrance_buttonDownload.UseVisualStyleBackColor = true;
+            entrance_buttonDownload.Click += entrance_buttonDownload_Click;
+            // 
             // FormEntrance
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(784, 561);
+            Controls.Add(entrance_buttonDownload);
             Controls.Add(entrance_buttonClose);
             MaximizeBox = false;
             MaximumSize = new Size(800, 600);
@@ -60,5 +72,6 @@
 
         private Button entrance_buttonClose;
         private FolderBrowserDialog entrance_folderBrowserDialogHello;
+        private Button entrance_buttonDownload;
     }
 }

@@ -50,21 +50,21 @@ namespace UFZapret.Forms
 
                     this.DialogResult = DialogResult.OK;
                 }
-                else 
+                else
                 {
                     var result = MessageBox.Show("$Папка установлена не через git (необходимо для авто-обновлений). Установить?\n" +
                         "Если нет, то функция авто-обновлений не будет работать (будет работать некорректно)",
-                        "$Непраильный путь" , 
-                        MessageBoxButtons.YesNo, 
+                        "$Непраильный путь",
+                        MessageBoxButtons.YesNo,
                         MessageBoxIcon.Question);
 
-                    switch(result)
+                    switch (result)
                     {
                         case DialogResult.Yes:
 
                             MessageBox.Show("Укажите путь куда установить zapret",
                                 "Новый zapret",
-                                MessageBoxButtons.OK, 
+                                MessageBoxButtons.OK,
                                 MessageBoxIcon.Exclamation);
 
                             entrance_folderBrowserDialogHello.ShowDialog();
@@ -120,5 +120,33 @@ namespace UFZapret.Forms
         #endregion
 
 
+        private void entrance_buttonDownload_Click(object sender, EventArgs e)
+        {
+            MessageBox.Show("Куда хотите установить Zapret (можно установить в папку приложения)",
+                "Установка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Exclamation);
+
+            entrance_folderBrowserDialogHello.ShowDialog();
+            folderPath = entrance_folderBrowserDialogHello.SelectedPath;
+
+            DataService.CreateNewGitClone_Zapret(folderPath);
+
+            if (!DataService.GitExisting_Zapret(folderPath))
+            {
+                MessageBox.Show("Произошла ошибка, файлы не установлены!",
+                "Ошибка",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+            }
+            else
+            {
+                ConfigManager.SetValue("pathOrigin", folderPath);
+
+                new FormConfiguration().ShowDialog();
+
+                this.DialogResult = DialogResult.OK;
+            }
+        }
     }
 }
