@@ -13,11 +13,6 @@ namespace UFZapret.Forms
         [STAThread]
         static void Main(string[] args)
         {
-            DataService ds = new DataService();
-
-            bool isConfigValid = IsConfigValid();
-            bool startMinimized = args.Contains("--minimized");
-
             // Создаем мьютекс для предотвращения запуска нескольких копий
             bool createdNew;
             mutex = new Mutex(true, "UFZapret.Forms.SingleInstance", out createdNew);
@@ -29,19 +24,47 @@ namespace UFZapret.Forms
                 return;
             }
 
+            DataService ds = new DataService();
+
+            ConfigManager.LoadConfig();
+
+            bool isConfigValid = IsConfigValid();
+            bool startMinimized = args.Contains("--minimized");
+
+            // Если это автозапуск и конфиг невалиден, ждем в сплеш-скрине
+            if (startMinimized && !isConfigValid)
+            {
+                using (var splash = new FormSplash())
+                {
+                    splash.Show();
+                    Application.DoEvents(); // Обновляем UI
+
+                    DateTime startTime = DateTime.Now;
+                    int maxWaitSeconds = 10; // Максимум 10 секунд ожидания
+
+                    // Ждем, пока конфиг станет валидным
+                    while (!isConfigValid && (DateTime.Now - startTime).TotalSeconds < maxWaitSeconds)
+                    {
+                        splash.UpdateStatus($"Загрузка... {maxWaitSeconds - (int)(DateTime.Now - startTime).TotalSeconds} сек");
+                        Application.DoEvents();
+                        Thread.Sleep(200); // Проверяем каждые 200 мс
+
+                        // Перезагружаем конфиг и обновляем флаг
+                        ConfigManager.LoadConfig();
+                        isConfigValid = IsConfigValid(); // Это ключевая строка!
+                    }
+
+                    // Закрываем сплеш-скрин
+                    splash.Close();
+                }
+            }
+
+            // ПЕРЕЗАГРУЖАЕМ конфиг ПОСЛЕ ожидания (важно!)
+            ConfigManager.LoadConfig();
+            isConfigValid = IsConfigValid(); // Обновляем состояние после ожидания
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-
-            using (var splash = new FormSplash())
-            {
-                splash.Show();
-                Application.DoEvents();
-
-                // Загрузка конфига
-                ConfigManager.LoadConfig();
-
-                Thread.Sleep(1000); // Минимум 1 секунда для показа сплеша
-            }
 
             // Подписываемся на события закрытия приложения
             Application.ApplicationExit += OnApplicationExit;
@@ -147,6 +170,38 @@ namespace UFZapret.Forms
             catch
             {
                 return false;
+            }
+        }
+
+        public class FormSplash : Form
+        {
+            private Label label;
+
+            public FormSplash()
+            {
+                this.FormBorderStyle = FormBorderStyle.None;
+                this.StartPosition = FormStartPosition.CenterScreen;
+                this.TopMost = true;
+                this.Size = new Size(300, 100);
+                this.BackColor = Color.LightBlue;
+
+                label = new Label
+                {
+                    Text = "Загрузка...",
+                    Dock = DockStyle.Fill,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font = new Font("Arial", 12)
+                };
+
+                this.Controls.Add(label);
+            }
+
+            public void UpdateStatus(string message)
+            {
+                if (label.InvokeRequired)
+                    label.Invoke(new Action(() => label.Text = message));
+                else
+                    label.Text = message;
             }
         }
     }
