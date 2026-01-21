@@ -1,8 +1,9 @@
 ﻿using Microsoft.Win32;
 using System;
+using System.Diagnostics;
 using System.IO;
 
-namespace UFZapret.Lib // Или UFZapret.Forms - смотри по вашему проекту
+namespace UFZapret.Lib
 {
     public static class AutoStartManager
     {
@@ -15,10 +16,17 @@ namespace UFZapret.Lib // Или UFZapret.Forms - смотри по вашему
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, false))
                 {
-                    return key?.GetValue(AppName) != null;
+                    if (key == null) return false;
+
+                    object value = key.GetValue(AppName);
+                    return value != null && !string.IsNullOrEmpty(value.ToString());
                 }
             }
-            catch { return false; }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AutoStart] Ошибка проверки: {ex.Message}");
+                return false;
+            }
         }
 
         public static bool Enable(string arguments = "")
@@ -26,17 +34,59 @@ namespace UFZapret.Lib // Или UFZapret.Forms - смотри по вашему
             try
             {
                 string exePath = GetExecutablePath();
-                if (string.IsNullOrEmpty(exePath)) return false;
-
-                string command = $"\"{exePath}\" {arguments}".Trim();
-
-                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, true))
+                if (string.IsNullOrEmpty(exePath))
                 {
-                    key.SetValue(AppName, command);
-                    return true;
+                    Debug.WriteLine("[AutoStart] Не удалось получить путь к программе");
+                    return false;
                 }
+
+                Debug.WriteLine($"[AutoStart] Путь к exe: {exePath}");
+
+                // Формируем команду
+                string command = $"\"{exePath}\"";
+                if (!string.IsNullOrWhiteSpace(arguments))
+                {
+                    command += $" {arguments}";
+                }
+
+                Debug.WriteLine($"[AutoStart] Команда: {command}");
+
+                // Создаем или открываем ключ
+                RegistryKey key = null;
+                try
+                {
+                    key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, true);
+                    if (key == null)
+                    {
+                        // Создаем ключ, если его нет
+                        key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath, true);
+                    }
+
+                    key.SetValue(AppName, command, RegistryValueKind.String);
+                }
+                finally
+                {
+                    key?.Dispose();
+                }
+
+                // Проверяем результат
+                bool success = IsEnabled();
+                Debug.WriteLine(success
+                    ? "[AutoStart] Успешно добавлен в реестр"
+                    : "[AutoStart] Не удалось добавить в реестр");
+
+                return success;
             }
-            catch { return false; }
+            catch (UnauthorizedAccessException ex)
+            {
+                Debug.WriteLine($"[AutoStart] Нет прав на запись в реестр: {ex.Message}");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AutoStart] Ошибка: {ex.Message}");
+                return false;
+            }
         }
 
         public static bool Disable()
@@ -45,16 +95,71 @@ namespace UFZapret.Lib // Или UFZapret.Forms - смотри по вашему
             {
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, true))
                 {
+                    if (key == null) return true; // Ключа нет - значит уже отключен
+
                     key.DeleteValue(AppName, false);
                     return true;
                 }
             }
-            catch { return false; }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AutoStart] Ошибка отключения: {ex.Message}");
+                return false;
+            }
         }
 
         private static string GetExecutablePath()
         {
-            return System.Reflection.Assembly.GetExecutingAssembly().Location;
+            try
+            {
+                // Получаем путь через текущий процесс
+                using (Process process = Process.GetCurrentProcess())
+                {
+                    string path = process.MainModule.FileName;
+
+                    if (File.Exists(path) && path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return path;
+                    }
+                }
+
+                // Альтернативный способ
+                return System.Reflection.Assembly.GetEntryAssembly().Location;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AutoStart] Ошибка получения пути: {ex.Message}");
+                return null;
+            }
+        }
+
+        // Метод для синхронизации настроек (вызывается из FormMain)
+        public static void SyncWithConfig()
+        {
+            try
+            {
+                bool autoStartInConfig = DataService.GetAutoStart();
+                bool autoStartInRegistry = IsEnabled();
+
+                if (autoStartInConfig != autoStartInRegistry)
+                {
+                    Debug.WriteLine($"[AutoStart] Расхождение: Config={autoStartInConfig}, Registry={autoStartInRegistry}");
+
+                    // Обновляем реестр в соответствии с конфигом
+                    if (autoStartInConfig)
+                    {
+                        Enable(DataService.GetStartupArguments());
+                    }
+                    else
+                    {
+                        Disable();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AutoStart] Ошибка синхронизации: {ex.Message}");
+            }
         }
     }
 }

@@ -11,11 +11,25 @@ namespace UFZapret.Forms
         {
             InitializeComponent();
 
+            AutoStartManager.SyncWithConfig();
+
+            string[] args = Environment.GetCommandLineArgs();
+            bool startMinimized = args.Contains("--minimized");
+
+            if (startMinimized)
+            {
+                this.Load += (s, e) => {
+                    MinimizeToTray();
+                };
+            }
+
             TrayStartup();
 
             CheckIsConfigAvalible();
 
             InitializeTrayIcon();
+
+            CheckAutoStartStatus();
 
             this.FormClosing += FormMain_FormClosing;
         }
@@ -54,17 +68,34 @@ namespace UFZapret.Forms
 
         private void RestoreFromTray()
         {
+            // Восстанавливаем окно
             this.Show();
             this.WindowState = FormWindowState.Normal;
             this.ShowInTaskbar = true;
-            trayIcon.Visible = false; // Скрываем иконку при восстановлении
+
+            // Фокус на окно
+            this.Activate();
+            this.BringToFront();
+
+            // Скрываем иконку в трее
+            if (trayIcon != null)
+            {
+                trayIcon.Visible = false;
+            }
         }
 
         private void MinimizeToTray()
         {
-            this.Hide();
-            this.ShowInTaskbar = false;
-            trayIcon.Visible = true;
+            // ПРАВИЛЬНОЕ сворачивание в трей
+            this.WindowState = FormWindowState.Minimized;
+            this.Hide(); // Важно! Скрываем окно
+            this.ShowInTaskbar = false; // Убираем из панели задач
+
+            // Показываем иконку в трее
+            if (trayIcon != null)
+            {
+                trayIcon.Visible = true;
+            }
         }
 
         private void OnTrayRestore(object sender, EventArgs e)
@@ -194,18 +225,40 @@ namespace UFZapret.Forms
             }
         }
 
+        private void CheckAutoStartStatus()
+        {
+            bool autoStartInConfig = DataService.GetAutoStart();
+            bool autoStartInRegistry = AutoStartManager.IsEnabled();
+
+            // Если настройки не совпадают, обновляем Config
+            if (autoStartInConfig != autoStartInRegistry)
+            {
+                Debug.WriteLine($"Расхождение в автозапуске: Config={autoStartInConfig}, Registry={autoStartInRegistry}");
+                DataService.SetAutoStart(autoStartInRegistry);
+            }
+        }
+
         #endregion
 
         #region LOGIC
 
         private async void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Отменяем стандартное закрытие если не это не выход из трея
-            if (e.CloseReason == CloseReason.UserClosing && !isExitingFromTray)
+            // Если пользователь закрывает через крестик - сворачиваем в трей
+            if (e.CloseReason == CloseReason.UserClosing)
             {
-                e.Cancel = true;
+                e.Cancel = true; // Отменяем закрытие
                 MinimizeToTray();
-                UpdateStatus("Приложение свернуто в трей");
+
+                // Показываем уведомление в трее
+                if (trayIcon != null)
+                {
+                    trayIcon.ShowBalloonTip(1000, "UFZapret",
+                        "Приложение свернуто в трей\nДля выхода используйте меню в трее",
+                        ToolTipIcon.Info);
+                }
+
+                UpdateStatus("Свернуто в трей");
                 return;
             }
 

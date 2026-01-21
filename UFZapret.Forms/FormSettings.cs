@@ -30,6 +30,7 @@ namespace UFZapret.Forms
             // Автозапуск
             settings_checkBoxAutoStart.Checked = DataService.GetAutoStart();
             settings_checkBoxStartMinimized.Checked = DataService.GetStartupArguments() == "--minimized";
+            settings_checkBoxStartMinimized.Enabled = settings_checkBoxAutoStart.Checked;
         }
 
         private void settings_buttonCancel_Click(object sender, EventArgs e)
@@ -50,10 +51,31 @@ namespace UFZapret.Forms
         {
             bool autoStartEnabled = settings_checkBoxAutoStart.Checked;
             DataService.SetAutoStart(autoStartEnabled);
+
+            string args = settings_checkBoxStartMinimized.Checked ? "--minimized" : "";
+            DataService.SetStartupArguments(args);
+
+            // Применяем изменения в реестре
+            bool success;
+            if (autoStartEnabled)
+            {
+                success = AutoStartManager.Enable(args);
+            }
+            else
+            {
+                success = AutoStartManager.Disable();
+            }
+
+            // Показываем результат
+            if (autoStartEnabled && !success)
+            {
+                MessageBox.Show("Не удалось включить автозапуск.\n" +
+                              "Попробуйте запустить программу от имени администратора.",
+                              "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
-        // Обработчики для CheckBox
-        private void settings_checkBoxAutoStart_CheckedChanged(object sender, EventArgs e)
+        private void settings_checkBoxAutoStart_CheckedChanged_1(object sender, EventArgs e)
         {
             settings_checkBoxStartMinimized.Enabled = settings_checkBoxAutoStart.Checked;
         }

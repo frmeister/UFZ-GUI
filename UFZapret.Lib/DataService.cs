@@ -52,6 +52,11 @@ namespace UFZapret.Lib
             return ConfigManager.GetValue("startupArgs", "--minimized");
         }
 
+        public static void SetStartupArguments(string arguments)
+        {
+            ConfigManager.SetValue("startupArgs", arguments);
+        }
+
         #region ORIGIN WORKFLOW
 
         public static void CreateNewGitClone_Zapret(string path)

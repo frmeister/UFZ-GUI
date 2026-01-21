@@ -98,7 +98,7 @@
             settings_checkBoxAutoStart.TabIndex = 5;
             settings_checkBoxAutoStart.Text = "AutoStart";
             settings_checkBoxAutoStart.UseVisualStyleBackColor = true;
-            settings_checkBoxAutoStart.CheckedChanged += settings_checkBoxAutoStart_CheckedChanged;
+            settings_checkBoxAutoStart.CheckedChanged += settings_checkBoxAutoStart_CheckedChanged_1;
             // 
             // settings_textBoxAutoStart
             // 
