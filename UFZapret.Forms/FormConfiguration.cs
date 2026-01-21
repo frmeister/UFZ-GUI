@@ -29,6 +29,8 @@ namespace UFZapret.Forms
             CfgButtonsDisable();
 
             DrawCurrentPath();
+
+            Updater_Origin();
         }
 
         #region LOGIC
@@ -135,7 +137,7 @@ namespace UFZapret.Forms
                 // Заполняем кнопки
                 CfgButtonsEnableAndFill(files);
 
-                config_textBoxInfo.Text = $"Directory found!";
+                UpdateStatus_Config($"Directory found!", 0);
 
                 // Теперь ищем и деактивируем
                 if (configName != "none")
@@ -148,7 +150,7 @@ namespace UFZapret.Forms
                         {
                             button.Enabled = false;
                             button.BackColor = Color.LightGray;
-                            config_textBoxConfigMaster.Text = $"Выбран конфиг:\n{button.Text}"; // NOT WORKING
+                            UpdateStatus_Config($"Выбран конфиг:\n{button.Text}", 1); // NOT WORKING
                             break;
                         }
                     }
@@ -156,11 +158,117 @@ namespace UFZapret.Forms
             }
             else
             {
-                config_textBoxInfo.Text = "Папка Zapret не настроена. Выберите папку.";
+                UpdateStatus_Config("Папка Zapret не настроена. Выберите папку.", 0);
+            }
+        }
+
+        private void Updater_Origin()
+        {
+            ConfigManager.SetValue("originVersion", DataService.GetLocalVersion_Origin(folderPath));
+
+            if(DataService.IsThereUpdateZapret_Origin(folderPath))
+            {
+                config_buttonUpdate.Enabled = true;
+
+                UpdateStatus_Info("\n$New version of Zapret is avalible!", 0);
+            }
+            else
+            {
+                UpdateStatus_Info("\n$Stable version", 0);
+            }
+        }
+
+
+
+        #endregion
+
+        #region STATUS
+
+        private void UpdateStatus_Info(string text, int row)
+        {
+            switch (row)
+            {
+                case 0:
+                    config_textBoxInfo.Text = text;
+                    break;
+                case 1:
+                    config_textBoxInfo.Text += text;
+                    break;
+            }
+        }
+
+        private void UpdateStatus_Config(string text, int row)
+        {
+            switch(row)
+            {
+                case 0:
+                    config_textBoxConfigMaster.Text = text;
+                    break;
+                case 1:
+                    config_textBoxConfigMaster.Text += text;
+                    break;
             }
         }
 
         #endregion
+
+        #region BUTTONS
+        private void ConfigButton_Click(object sender, EventArgs e)
+        {
+            Button clickedButton = sender as Button;
+
+            // Проверяем, что это кнопка конфига (по имени)
+            if (clickedButton == null || !clickedButton.Name.StartsWith("config_button") ||
+                clickedButton.Name.EndsWith("Save") || clickedButton.Name.EndsWith("Cancel") ||
+                clickedButton.Name.EndsWith("ChangeCfg") || clickedButton.Name.EndsWith("Update") ||
+                clickedButton.Name.EndsWith("AutoCfg"))
+                return;
+
+            // 1. Сначала активируем ВСЕ остальные кнопки (снимаем предыдущий выбор)
+            foreach (var button in configButtons)
+            {
+                // Пропускаем нажатую кнопку
+                if (button == clickedButton) continue;
+
+                // Активируем все остальные кнопки
+                if (button.Visible && !button.Enabled)
+                {
+                    button.Enabled = true;
+                    button.BackColor = SystemColors.Control; // Возвращаем стандартный цвет
+                }
+            }
+
+            // 2. Деактивируем только нажатую кнопку
+            clickedButton.Enabled = false;
+
+            // 3. Сохраняем выбор
+            configName = clickedButton.Text + ".bat";
+
+            // 4. Показываем информацию о выборе
+            UpdateStatus_Config($"Выбран конфиг:\n{clickedButton.Text}", 1);
+        }
+
+        private void config_buttonUpdate_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                DataService.UpdateZapret_Origin(folderPath);
+
+                MessageBox.Show(
+                    "$Обновление установлено успешно!",
+                    "$Обновление",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Exclamation);
+            }
+            catch
+            {
+                MessageBox.Show(
+                    "$Не удалось установить обновление",
+                    "$Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
 
         private void config_buttonSave_Click(object sender, EventArgs e)
         {
@@ -195,41 +303,11 @@ namespace UFZapret.Forms
             CfgButtonsEnableAndFill(GetBatFiles(pathDirectory));
         }
 
-        #region ConfigButtons
-        private void ConfigButton_Click(object sender, EventArgs e)
+        private void config_buttonAutoCfg_Click(object sender, EventArgs e)
         {
-            Button clickedButton = sender as Button;
 
-            // Проверяем, что это кнопка конфига (по имени)
-            if (clickedButton == null || !clickedButton.Name.StartsWith("config_button") ||
-                clickedButton.Name.EndsWith("Save") || clickedButton.Name.EndsWith("Cancel") ||
-                clickedButton.Name.EndsWith("ChangeCfg") || clickedButton.Name.EndsWith("Update") ||
-                clickedButton.Name.EndsWith("AutoCfg"))
-                return;
-
-            // 1. Сначала активируем ВСЕ остальные кнопки (снимаем предыдущий выбор)
-            foreach (var button in configButtons)
-            {
-                // Пропускаем нажатую кнопку
-                if (button == clickedButton) continue;
-
-                // Активируем все остальные кнопки
-                if (button.Visible && !button.Enabled)
-                {
-                    button.Enabled = true;
-                    button.BackColor = SystemColors.Control; // Возвращаем стандартный цвет
-                }
-            }
-
-            // 2. Деактивируем только нажатую кнопку
-            clickedButton.Enabled = false;
-
-            // 3. Сохраняем выбор
-            configName = clickedButton.Text + ".bat";
-
-            // 4. Показываем информацию о выборе
-            config_textBoxConfigMaster.Text = $"Выбран конфиг:\n{clickedButton.Text}";
         }
+
         #endregion
 
     }

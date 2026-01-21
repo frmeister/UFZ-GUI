@@ -1,6 +1,14 @@
 	:: Logic ::
-1)
+1) zapret updater -> Logic formulated -> get version of origin and compare it w/
+2) Application updater
+3) Startup manager
+4) Desing workflow
 
 
 	:: Design ::
 1) Dobavit' hohlomy
+
+	:: Bugs ::
+1) Tray phantow windows appeared
+2) X button on FormMain does not exits application
+3) _ button on FormMain does not hides application in tray

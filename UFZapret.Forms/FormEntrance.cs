@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using UFZ.Lib;
+using UFZapret.Lib;
 
 namespace UFZapret.Forms
 {
@@ -30,6 +31,8 @@ namespace UFZapret.Forms
 
             string[] batFiles = Directory.GetFiles(folderPath, "*.bat");
 
+            bool gitDirectoryIsThere = File.Exists(folderPath + ".gitattributes");
+
             if (batFiles.Length == 0)
             {
                 MessageBox.Show($"В папке не найдены .bat файлы:\n{folderPath}",
@@ -37,13 +40,69 @@ namespace UFZapret.Forms
             }
             else
             {
-                ConfigManager.SetValue("pathOrigin", folderPath);
+                if (gitDirectoryIsThere)
+                {
 
-                FormConfiguration formconfig = new FormConfiguration();
-                formconfig.ShowDialog();
+                    ConfigManager.SetValue("pathOrigin", folderPath);
 
-                this.DialogResult = DialogResult.OK;
+                    FormConfiguration formconfig = new FormConfiguration();
+                    formconfig.ShowDialog();
+
+                    this.DialogResult = DialogResult.OK;
+                }
+                else 
+                {
+                    var result = MessageBox.Show("$Папка установлена не через git (необходимо для авто-обновлений). Установить?\n" +
+                        "Если нет, то функция авто-обновлений не будет работать (будет работать некорректно)",
+                        "$Непраильный путь" , 
+                        MessageBoxButtons.YesNo, 
+                        MessageBoxIcon.Question);
+
+                    switch(result)
+                    {
+                        case DialogResult.Yes:
+
+                            MessageBox.Show("Укажите путь куда установить zapret",
+                                "Новый zapret",
+                                MessageBoxButtons.OK, 
+                                MessageBoxIcon.Exclamation);
+
+                            entrance_folderBrowserDialogHello.ShowDialog();
+
+                            folderPath = entrance_folderBrowserDialogHello.SelectedPath;
+
+                            DataService.CreateNewGitClone_Zapret(folderPath);
+
+                            if (!DataService.GitExisting_Zapret(folderPath))
+                            {
+                                MessageBox.Show("Произошла ошибка, файлы не установлены!",
+                                "Ошибка",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Error);
+                            }
+                            else
+                            {
+                                ConfigManager.SetValue("pathOrigin", folderPath);
+
+                                new FormConfiguration().ShowDialog();
+
+                                this.DialogResult = DialogResult.OK;
+                            }
+
+                            break;
+
+                        case DialogResult.No:
+                            ConfigManager.SetValue("pathOrigin", folderPath);
+
+                            FormConfiguration formconfig = new FormConfiguration();
+                            formconfig.ShowDialog();
+
+                            this.DialogResult = DialogResult.OK;
+                            break;
+                    }
+                }
             }
+
         }
 
 

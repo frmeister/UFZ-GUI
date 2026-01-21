@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using UFZapret.Lib;
 
 namespace UFZ.Lib
 {
@@ -133,6 +134,7 @@ namespace UFZ.Lib
                 { "autoStart", "false" },
                 { "startupArgs", "none" },
                 { "appVersion", "0.21" },
+                { "originVersion", "none"}
                 // ... другие параметры по умолчанию
             };
 

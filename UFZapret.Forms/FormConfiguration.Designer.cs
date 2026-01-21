@@ -110,6 +110,7 @@
             config_buttonAutoCfg.TabIndex = 2;
             config_buttonAutoCfg.Text = "Auto";
             config_buttonAutoCfg.UseVisualStyleBackColor = true;
+            config_buttonAutoCfg.Click += config_buttonAutoCfg_Click;
             // 
             // config_panelToolBox
             // 
@@ -381,12 +382,14 @@
             // config_buttonUpdate
             // 
             config_buttonUpdate.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            config_buttonUpdate.Enabled = false;
             config_buttonUpdate.Location = new Point(9, 606);
             config_buttonUpdate.Name = "config_buttonUpdate";
             config_buttonUpdate.Size = new Size(100, 80);
             config_buttonUpdate.TabIndex = 1;
             config_buttonUpdate.Text = "Update";
             config_buttonUpdate.UseVisualStyleBackColor = true;
+            config_buttonUpdate.Click += config_buttonUpdate_Click;
             // 
             // config_buttonCancel
             // 
