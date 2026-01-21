@@ -22,7 +22,7 @@ namespace UFZ.Lib
         }
 
         // Загружаем конфигурацию один раз при запуске
-        private static void LoadConfig()
+        public static void LoadConfig()
         {
             lock (lockObject)
             {

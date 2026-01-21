@@ -7,17 +7,17 @@ namespace UFZapret.Forms
 {
     internal static class Program
     {
-        /// <summary>
-        ///  The main entry point for the application.
-        /// </summary>
-        /// 
-
         private static Mutex mutex;
+        private static bool forceStopCalled = false;
 
         [STAThread]
         static void Main(string[] args)
         {
             DataService ds = new DataService();
+            ConfigManager.LoadConfig();
+
+            bool isConfigValid = IsConfigValid();
+            bool startMinimized = args.Contains("--minimized");
 
             // Создаем мьютекс для предотвращения запуска нескольких копий
             bool createdNew;
@@ -33,10 +33,14 @@ namespace UFZapret.Forms
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // ПРОВЕРКА ПЕРВОГО ЗАПУСКА ТОЛЬКО ЗДЕСЬ!
-            bool isFirstLaunch = ds.IsFirstLaunch();
+            // Подписываемся на события закрытия приложения
+            Application.ApplicationExit += OnApplicationExit;
+            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
-            if (isFirstLaunch)
+            FormMain mainForm = null;
+
+            if (!isConfigValid)
             {
                 // Показываем приветственное окно как диалог
                 using (var formEntrance = new FormEntrance())
@@ -45,67 +49,59 @@ namespace UFZapret.Forms
                     {
                         // Сохраняем, что это уже не первый запуск
                         ConfigManager.SetValue("isThisFirstLaunch", "false");
-
-                        // Запускаем главное окно
-                        Application.Run(new FormMain());
+                        // Конфиг теперь должен быть валидным, создаем главную форму
+                        mainForm = new FormMain();
                     }
                     else
                     {
                         // Пользователь отменил (например, нажал крестик)
-                        Application.Exit();
+                        // Освобождаем мьютекс и выходим
+                        mutex?.ReleaseMutex();
+                        return;
                     }
                 }
             }
             else
             {
                 // Обычный запуск
-                Application.Run(new FormMain());
+                mainForm = new FormMain();
             }
 
-            // Подписываемся на события закрытия приложения
-            Application.ApplicationExit += OnApplicationExit;
-            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
-            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
-
-            try
+            // Если форма создана, запускаем приложение
+            if (mainForm != null)
             {
-                Application.Run(new FormMain());
+                try
+                {
+                    Application.Run(mainForm);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Критическая ошибка: {ex.Message}\n\n{ex.StackTrace}",
+                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    // Гарантированная остановка при выходе
+                    ZapretService.ForceStop();
+                    mutex?.ReleaseMutex();
+                }
             }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Критическая ошибка: {ex.Message}\n\n{ex.StackTrace}",
-                    "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-            finally
-            {
-                // Гарантированная остановка при выходе
-                ZapretService.ForceStop();
-                mutex?.ReleaseMutex();
-            }
-
-            bool startMinimized = args.Contains("--minimized");
-
-            FormMain mainForm = new FormMain();
-
-            if (startMinimized)
-            {
-                // Запускаем скрыто, сразу в трей
-                mainForm.WindowState = FormWindowState.Minimized;
-                mainForm.ShowInTaskbar = false;
-                mainForm.Visible = false;
-            }
-
-            Application.Run(mainForm);
         }
 
         private static void OnApplicationExit(object sender, EventArgs e)
         {
+            if (forceStopCalled) return;
+            forceStopCalled = true;
+
             Debug.WriteLine("=== ApplicationExit: Принудительная остановка Zapret ===");
             ZapretService.ForceStop();
         }
 
         private static void OnProcessExit(object sender, EventArgs e)
         {
+            if (forceStopCalled) return;
+            forceStopCalled = true;
+
             Debug.WriteLine("=== ProcessExit: Принудительная остановка Zapret ===");
             ZapretService.ForceStop();
         }
@@ -114,6 +110,34 @@ namespace UFZapret.Forms
         {
             Debug.WriteLine($"=== UnhandledException: {e.ExceptionObject} ===");
             ZapretService.ForceStop();
+        }
+
+        static bool IsConfigValid()
+        {
+            try
+            {
+                string pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
+                string currentConfig = ConfigManager.GetValue("currentConfig", "none");
+
+                // Проверяем, что путь существует и конфиг выбран
+                if (pathOrigin == "none" || currentConfig == "none")
+                    return false;
+
+                // Проверяем существование папки zapret
+                if (!Directory.Exists(pathOrigin))
+                    return false;
+
+                // Проверяем существование файла конфига
+                string configPath = Path.Combine(pathOrigin, currentConfig);
+                if (!File.Exists(configPath))
+                    return false;
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

@@ -127,27 +127,38 @@ namespace UFZapret.Forms
             }
         }
 
-
         public static void ForceStop()
         {
             try
             {
                 Debug.WriteLine("=== Принудительная остановка Zapret ===");
 
-                // Создаем отдельную задачу для принудительной остановки
-                Task.Run(async () =>
+                // Проверяем, не остановлен ли уже Zapret
+                if (!isRunning)
                 {
-                    await Stop(force: true);
-                }).Wait(3000); // Ждем максимум 3 секунды
+                    Debug.WriteLine("Zapret уже остановлен, пропускаем...");
+                    return;
+                }
+
+                // Отменяем отслеживание
+                trackingCancellationTokenSource?.Cancel();
+
+                // Немедленная остановка всех процессов Zapret
+                KillAllZapretProcessesImmediately();
+
+                // Сбрасываем состояние
+                isRunning = false;
+
+                lock (processLock)
+                {
+                    winwsProcess = null;
+                }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Ошибка принудительной остановки: {ex.Message}");
-                // Последняя попытка - просто убиваем все процессы
-                KillAllZapretProcessesImmediately();
             }
         }
-
         private static void KillAllZapretProcessesImmediately()
         {
             string[] processNames = { "winws", "tpws", "dnstls", "nfqws", "cmd", "conhost" };

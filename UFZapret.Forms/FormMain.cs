@@ -23,8 +23,6 @@ namespace UFZapret.Forms
                 };
             }
 
-            TrayStartup();
-
             CheckIsConfigAvalible();
 
             InitializeTrayIcon();
@@ -32,6 +30,7 @@ namespace UFZapret.Forms
             CheckAutoStartStatus();
 
             this.FormClosing += FormMain_FormClosing;
+            this.Resize += FormMain_Resize;
         }
 
         #region TRAY
@@ -44,6 +43,7 @@ namespace UFZapret.Forms
             // Создаем контекстное меню для трея
             trayMenu = new ContextMenuStrip();
             trayMenu.Items.Add("Развернуть", null, OnTrayRestore);
+            trayMenu.Items.Add(new ToolStripSeparator());
             trayMenu.Items.Add("Выход", null, OnTrayExit);
 
             // Создаем иконку в трее
@@ -52,7 +52,7 @@ namespace UFZapret.Forms
                 Icon = SystemIcons.Application, // Можно заменить на свою иконку
                 Text = "UFZapret",
                 ContextMenuStrip = trayMenu,
-                Visible = true
+                Visible = false // Изначально скрыта
             };
 
             // Обработка кликов по иконке
@@ -68,34 +68,18 @@ namespace UFZapret.Forms
 
         private void RestoreFromTray()
         {
-            // Восстанавливаем окно
             this.Show();
             this.WindowState = FormWindowState.Normal;
             this.ShowInTaskbar = true;
-
-            // Фокус на окно
-            this.Activate();
-            this.BringToFront();
-
-            // Скрываем иконку в трее
-            if (trayIcon != null)
-            {
-                trayIcon.Visible = false;
-            }
+            trayIcon.Visible = false;
+            this.Activate(); // Активируем окно
         }
 
         private void MinimizeToTray()
         {
-            // ПРАВИЛЬНОЕ сворачивание в трей
-            this.WindowState = FormWindowState.Minimized;
-            this.Hide(); // Важно! Скрываем окно
-            this.ShowInTaskbar = false; // Убираем из панели задач
-
-            // Показываем иконку в трее
-            if (trayIcon != null)
-            {
-                trayIcon.Visible = true;
-            }
+            this.Hide();
+            this.ShowInTaskbar = false;
+            trayIcon.Visible = true;
         }
 
         private void OnTrayRestore(object sender, EventArgs e)
@@ -103,8 +87,12 @@ namespace UFZapret.Forms
             RestoreFromTray();
         }
 
+        private bool isExitingFromTray = false;
+
         private async void OnTrayExit(object sender, EventArgs e)
         {
+            isExitingFromTray = true;
+
             // Останавливаем Zapret если запущен
             if (ZapretService.IsRunning)
             {
@@ -117,6 +105,7 @@ namespace UFZapret.Forms
 
                 if (result == DialogResult.Yes)
                 {
+                    UpdateStatus("Останавливаем zapret...");
                     await ZapretService.Stop();
                 }
                 // Если "Нет", то выходим, оставляя Zapret работать
@@ -124,13 +113,8 @@ namespace UFZapret.Forms
 
             // Корректно закрываем приложение
             trayIcon.Visible = false;
-            trayIcon.Dispose();
             Application.Exit();
         }
-
-        
-
-        private bool isExitingFromTray = false;
 
         #endregion
 
@@ -244,48 +228,66 @@ namespace UFZapret.Forms
 
         private async void FormMain_FormClosing(object sender, FormClosingEventArgs e)
         {
-            // Если пользователь закрывает через крестик - сворачиваем в трей
-            if (e.CloseReason == CloseReason.UserClosing)
-            {
-                e.Cancel = true; // Отменяем закрытие
-                MinimizeToTray();
+            // Если уже выходим из трея, пропускаем
+            if (isExitingFromTray) return;
 
-                // Показываем уведомление в трее
-                if (trayIcon != null)
-                {
-                    trayIcon.ShowBalloonTip(1000, "UFZapret",
-                        "Приложение свернуто в трей\nДля выхода используйте меню в трее",
-                        ToolTipIcon.Info);
-                }
-
-                UpdateStatus("Свернуто в трей");
-                return;
-            }
-
-            // Если Zapret запущен, предлагаем остановить
+            // Если Zapret запущен, показываем предупреждение
             if (ZapretService.IsRunning)
             {
                 var result = MessageBox.Show(
                     "Zapret в настоящее время запущен.\n\n" +
-                    "Остановить zapret перед выходом?",
-                    "Остановить zapret?",
+                    "Остановить zapret и выйти?\n" +
+                    "• Да - остановить zapret и выйти\n" +
+                    "• Нет - выйти, оставив zapret работать\n" +
+                    "• Отмена - остаться в приложении",
+                    "Подтверждение выхода",
                     MessageBoxButtons.YesNoCancel,
-                    MessageBoxIcon.Question);
+                    MessageBoxIcon.Question,
+                    MessageBoxDefaultButton.Button3); // По умолчанию "Отмена"
 
                 switch (result)
                 {
                     case DialogResult.Yes:
                         UpdateStatus("Останавливаем zapret...");
-                        await ZapretService.Stop();
+                        this.Enabled = false;
+
+                        try
+                        {
+                            // Останавливаем с таймаутом
+                            var stopTask = ZapretService.Stop();
+                            var timeoutTask = Task.Delay(3000);
+
+                            var completedTask = await Task.WhenAny(stopTask, timeoutTask);
+
+                            if (completedTask == timeoutTask)
+                            {
+                                ZapretService.ForceStop();
+                            }
+                        }
+                        finally
+                        {
+                            this.Enabled = true;
+                        }
+
+                        // Закрываем иконку трея
+                        trayIcon.Visible = false;
                         break;
+
                     case DialogResult.No:
-                        // Оставляем Zapret работать
+                        // Просто выходим, оставляя zapret работать
+                        trayIcon.Visible = false;
                         break;
+
                     case DialogResult.Cancel:
                         e.Cancel = true;
                         UpdateStatus("Закрытие отменено");
                         return;
                 }
+            }
+            else
+            {
+                // Zapret не запущен - просто закрываем
+                trayIcon.Visible = false;
             }
         }
 
@@ -303,8 +305,17 @@ namespace UFZapret.Forms
             }
         }
 
+        private void FormMain_Resize(object sender, EventArgs e)
+        {
+            // Сворачиваем в трей при нажатии на кнопку "минус"
+            if (this.WindowState == FormWindowState.Minimized)
+            {
+                MinimizeToTray();
+            }
+        }
+
         #endregion
 
-        
+
     }
 }
