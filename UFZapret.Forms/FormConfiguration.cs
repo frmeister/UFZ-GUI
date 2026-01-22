@@ -288,7 +288,7 @@ namespace UFZapret.Forms
 
                 DataService.SaveCurrentConfig(configName);
 
-                FormMain formMain = new FormMain();
+                FormMain formMain = new FormMain(false);
                 formMain.CheckIsConfigAvalible();
             }
             catch

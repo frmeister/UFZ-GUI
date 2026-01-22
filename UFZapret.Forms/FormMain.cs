@@ -7,23 +7,28 @@ namespace UFZapret.Forms
     public partial class FormMain : Form
 
     {
-        public FormMain()
+        public FormMain(bool startMinimized)
         {
             InitializeComponent();
 
-            AutoStartManager.SyncWithConfig();
+            // Перезагружаем конфиг для гарантии
+            ConfigManager.Initialize();
 
-            string[] args = Environment.GetCommandLineArgs();
-            bool startMinimized = args.Contains("--minimized");
+            Debug.WriteLine($"[FormMain] startMinimized: {startMinimized}");
+            Debug.WriteLine($"[FormMain] autoStart: {ConfigManager.GetValue("autoStart")}");
 
+            // Автоматически сворачиваем в трей если это авто-запуск
             if (startMinimized)
             {
-                this.Load += (s, e) => {
+                this.Load += (s, e) =>
+                {
+                    Debug.WriteLine("[FormMain] Minimizing to tray on load");
                     MinimizeToTray();
                 };
             }
 
-            ConfigManager.Reload();
+            // Инициализация остальных компонентов...
+            AutoStartManager.SyncWithConfig();
 
             CheckIsConfigAvalible();
 
