@@ -8,16 +8,28 @@ namespace UFZapret.Forms
     {
         private static Mutex mutex;
         private static bool forceStopCalled = false;
+        private static string logFilePath = "app_startup.log";
 
         [STAThread]
         static void Main(string[] args)
         {
+            // Начинаем логирование
+            LogToFile("========================================");
+            LogToFile($"[{DateTime.Now}] Application starting");
+            LogToFile($"Args: {string.Join(" ", args)}");
+            LogToFile($"Working directory: {Environment.CurrentDirectory}");
+
+            string isFirstLaunch = null;
+            string pathOrigin = null;
+            string currentConfig = null;
+
             // Создаем мьютекс для предотвращения запуска нескольких копий
             bool createdNew;
             mutex = new Mutex(true, "UFZapret.Forms.SingleInstance", out createdNew);
 
             if (!createdNew)
             {
+                LogToFile("Application already running, exiting");
                 MessageBox.Show("Приложение уже запущено!", "UFZapret",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -26,170 +38,177 @@ namespace UFZapret.Forms
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Логируем аргументы для отладки
-            string argsStr = string.Join(" ", args);
-            Debug.WriteLine($"[Program] Started with args: {argsStr}");
-            Debug.WriteLine($"[Program] Working directory: {Environment.CurrentDirectory}");
+            // Инициализируем ConfigManager сразу
+            LogToFile("Initializing ConfigManager...");
+            ConfigManager.Initialize();
+            LogToFile("ConfigManager initialized");
 
-            // 1. Определяем режим запуска
+            // Определяем режим запуска
             bool startMinimized = args.Contains("--minimized");
-            bool isAutoStartMode = startMinimized;
+            bool isAutoStart = ConfigManager.IsAutoStartEnabled();
 
-            Debug.WriteLine($"[Program] startMinimized: {startMinimized}, isAutoStartMode: {isAutoStartMode}");
+            LogToFile($"startMinimized: {startMinimized}");
+            LogToFile($"autoStart from config: {isAutoStart}");
 
-            // 2. Инициализируем ConfigManager с ожиданием если это авто-запуск
-            if (isAutoStartMode)
+            // Если это автозапуск, но autoStart=false в конфиге, выходим
+            if (startMinimized && !isAutoStart)
             {
-                // Для авто-запуска: инициализируем с ожиданием
-                Debug.WriteLine("[Program] Auto-start mode detected, initializing ConfigManager with wait...");
+                LogToFile("Auto-start disabled in config, exiting");
+                mutex?.ReleaseMutex();
+                return;
+            }
 
-                // Показываем сплеш-экран пока загружаем конфиг
+            // Проверяем, нужен ли сплеш-экран для автозапуска
+            if (startMinimized)
+            {
+                LogToFile("Auto-start mode detected, showing splash screen");
+
                 using (var splash = new FormSplash())
                 {
                     splash.Show();
                     Application.DoEvents();
 
-                    splash.UpdateStatus("Загрузка конфигурации...");
+                    DateTime startTime = DateTime.Now;
+                    int maxWaitSeconds = 10;
+                    bool configValid = false;
 
-                    // Инициализируем с несколькими попытками
-                    bool configLoaded = false;
-                    for (int i = 0; i < 10; i++)
+                    // Ждем, пока конфиг станет полностью загруженным
+                    while (!configValid && (DateTime.Now - startTime).TotalSeconds < maxWaitSeconds)
                     {
-                        ConfigManager.Initialize(waitForConfig: true);
-                        configLoaded = ConfigManager.WaitForInitialization(1000);
-
-                        if (configLoaded)
-                        {
-                            Debug.WriteLine($"[Program] Config loaded successfully on attempt {i + 1}");
-                            break;
-                        }
-
-                        splash.UpdateStatus($"Загрузка конфигурации... (попытка {i + 1}/10)");
-                        Thread.Sleep(200);
+                        int secondsLeft = maxWaitSeconds - (int)(DateTime.Now - startTime).TotalSeconds;
+                        splash.UpdateStatus($"Загрузка конфигурации... {secondsLeft} сек");
                         Application.DoEvents();
+                        Thread.Sleep(200);
+
+                        // Перезагружаем конфиг
+                        ConfigManager.Reload();
+
+                        // Проверяем ключевые параметры
+                        isFirstLaunch = ConfigManager.GetValue("isThisFirstLaunch", "true");
+                        pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
+                        currentConfig = ConfigManager.GetValue("currentConfig", "none");
+
+                        LogToFile($"Check: isFirstLaunch={isFirstLaunch}, pathOrigin={pathOrigin}, currentConfig={currentConfig}");
+
+                        // Конфиг считается валидным, если он загружен (isFirstLaunch имеет значение)
+                        configValid = (isFirstLaunch != "true" || (pathOrigin != "none" && currentConfig != "none"));
+
+                        LogToFile($"Config valid: {configValid}");
                     }
 
                     splash.Close();
-
-                    if (!configLoaded)
-                    {
-                        Debug.WriteLine("[Program] Failed to load config, exiting");
-                        mutex?.ReleaseMutex();
-                        return;
-                    }
                 }
             }
-            else
-            {
-                // Обычный запуск: просто инициализируем
-                ConfigManager.Initialize();
-            }
 
-            // 3. Проверяем автозапуск в конфиге
-            bool autoStartEnabled = ConfigManager.IsAutoStartEnabled();
-            Debug.WriteLine($"[Program] autoStartEnabled from config: {autoStartEnabled}");
+            // Проверяем, нужно ли показывать приветственный экран
+            isFirstLaunch = ConfigManager.GetValue("isThisFirstLaunch", "true");
+            pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
+            currentConfig = ConfigManager.GetValue("currentConfig", "none");
 
-            // 4. Проверяем, нужно ли показывать FormEntrance
-            // Проверяем только КЛЮЧЕВЫЕ параметры для авто-запуска
-            string pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
-            string currentConfig = ConfigManager.GetValue("currentConfig", "none");
+            LogToFile($"Final check: isFirstLaunch={isFirstLaunch}, pathOrigin={pathOrigin}, currentConfig={currentConfig}");
 
-            Debug.WriteLine($"[Program] pathOrigin: {pathOrigin}, currentConfig: {currentConfig}");
+            bool showEntrance = (isFirstLaunch == "true") || (pathOrigin == "none" && currentConfig == "none");
+            LogToFile($"Show entrance form: {showEntrance}");
 
-            // Определяем, нужно ли показывать приветственный экран
-            // Показываем только если ОБА параметра равны "none"
-            bool showEntrance = (pathOrigin == "none" && currentConfig == "none");
-
-            Debug.WriteLine($"[Program] showEntrance: {showEntrance}");
-
-            // 5. Логика для авто-запуска
-            if (isAutoStartMode)
-            {
-                Debug.WriteLine("[Program] Auto-start mode processing...");
-
-                if (!autoStartEnabled)
-                {
-                    Debug.WriteLine("[Program] Auto-start disabled in config, exiting");
-                    mutex?.ReleaseMutex();
-                    return;
-                }
-
-                // Для авто-запуска НЕ показываем FormEntrance, даже если конфиг не полный
-                // Вместо этого запускаем главную форму свернутой
-                showEntrance = false;
-                Debug.WriteLine("[Program] Auto-start: bypassing FormEntrance");
-            }
-
-            // 6. Создаем главную форму
             FormMain mainForm = null;
 
             if (showEntrance)
             {
-                Debug.WriteLine("[Program] Showing FormEntrance...");
-                // Показываем приветственное окно как диалог
-                using (var formEntrance = new FormEntrance())
+                LogToFile("Showing FormEntrance...");
+
+                // Если это авто-запуск, не показываем FormEntrance, просто запускаем FormMain
+                if (startMinimized)
                 {
-                    if (formEntrance.ShowDialog() == DialogResult.OK)
+                    LogToFile("Auto-start mode: bypassing FormEntrance, creating FormMain minimized");
+                    mainForm = new FormMain(true);
+                }
+                else
+                {
+                    // Показываем приветственное окно как диалог
+                    using (var formEntrance = new FormEntrance())
                     {
-                        // После успешной настройки создаем главную форму
-                        mainForm = new FormMain(startMinimized);
-                        Debug.WriteLine("[Program] FormEntrance completed successfully");
-                    }
-                    else
-                    {
-                        // Пользователь отменил
-                        Debug.WriteLine("[Program] FormEntrance was cancelled");
-                        mutex?.ReleaseMutex();
-                        return;
+                        if (formEntrance.ShowDialog() == DialogResult.OK)
+                        {
+                            // Сохраняем, что это уже не первый запуск
+                            ConfigManager.SetValue("isThisFirstLaunch", "false");
+                            LogToFile("FormEntrance completed successfully");
+
+                            // Конфиг теперь должен быть валидным, создаем главную форму
+                            mainForm = new FormMain(startMinimized);
+                        }
+                        else
+                        {
+                            // Пользователь отменил
+                            LogToFile("FormEntrance cancelled by user");
+                            mutex?.ReleaseMutex();
+                            return;
+                        }
                     }
                 }
             }
             else
             {
-                Debug.WriteLine("[Program] Creating FormMain directly...");
-                // Обычный запуск или авто-запуск
+                LogToFile("Creating FormMain directly...");
+                // Обычный запуск
                 mainForm = new FormMain(startMinimized);
             }
 
-            // 7. Подписываемся на события закрытия приложения
+            // Подписываемся на события закрытия приложения
             Application.ApplicationExit += OnApplicationExit;
             AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
 
-            // 8. Запускаем приложение
+            // Запускаем приложение
             if (mainForm != null)
             {
-                Debug.WriteLine("[Program] Starting application...");
+                LogToFile("Starting application...");
                 try
                 {
                     Application.Run(mainForm);
+                    LogToFile("Application run completed");
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[Program] Critical error: {ex}");
+                    LogToFile($"Critical error: {ex.Message}\n{ex.StackTrace}");
                     MessageBox.Show($"Критическая ошибка: {ex.Message}\n\n{ex.StackTrace}",
                         "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 finally
                 {
                     // Гарантированная остановка при выходе
-                    Debug.WriteLine("[Program] Application exiting...");
+                    LogToFile("Application exiting, cleaning up...");
                     ZapretService.ForceStop();
                     mutex?.ReleaseMutex();
                 }
             }
             else
             {
-                Debug.WriteLine("[Program] No main form created, exiting");
+                LogToFile("Main form not created, exiting");
                 mutex?.ReleaseMutex();
+            }
+
+            LogToFile("Application exit completed");
+        }
+
+        private static void LogToFile(string message)
+        {
+            try
+            {
+                string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}\n";
+                File.AppendAllText(logFilePath, logEntry);
+                Debug.WriteLine(message);
+            }
+            catch
+            {
+                // Игнорируем ошибки логирования
             }
         }
 
-        // Обработчики событий
         private static void OnApplicationExit(object sender, EventArgs e)
         {
             if (forceStopCalled) return;
             forceStopCalled = true;
+
             Debug.WriteLine("=== ApplicationExit: Принудительная остановка Zapret ===");
             ZapretService.ForceStop();
         }
@@ -198,6 +217,7 @@ namespace UFZapret.Forms
         {
             if (forceStopCalled) return;
             forceStopCalled = true;
+
             Debug.WriteLine("=== ProcessExit: Принудительная остановка Zapret ===");
             ZapretService.ForceStop();
         }
@@ -224,25 +244,13 @@ namespace UFZapret.Forms
 
                 label = new Label
                 {
-                    Text = "Загрузка...",
+                    Text = "Загрузка конфигурации...",
                     Dock = DockStyle.Fill,
                     TextAlign = ContentAlignment.MiddleCenter,
                     Font = new Font("Arial", 10)
                 };
 
                 this.Controls.Add(label);
-
-                // Добавляем отладочную информацию
-                var debugLabel = new Label
-                {
-                    Text = $"Директория: {Environment.CurrentDirectory}",
-                    Dock = DockStyle.Bottom,
-                    TextAlign = ContentAlignment.MiddleCenter,
-                    Font = new Font("Arial", 8),
-                    ForeColor = Color.Gray
-                };
-
-                this.Controls.Add(debugLabel);
             }
 
             public void UpdateStatus(string message)

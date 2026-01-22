@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace UFZ.Lib
 {
@@ -14,104 +13,111 @@ namespace UFZ.Lib
         private static Dictionary<string, string> _config;
         private static readonly object _lock = new object();
         private static bool _isInitialized = false;
-        private static ManualResetEventSlim _initEvent = new ManualResetEventSlim(false);
 
-        // Инициализация с гарантированной загрузкой
-        public static void Initialize(bool waitForConfig = false)
+        public static void Initialize()
         {
-            if (_isInitialized)
-            {
-                _initEvent.Set();
-                return;
-            }
+            if (_isInitialized) return;
 
             lock (_lock)
             {
-                if (_isInitialized)
-                {
-                    _initEvent.Set();
-                    return;
-                }
+                if (_isInitialized) return;
+
+                _config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
                 try
                 {
-                    _config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
                     if (!File.Exists(configPath))
                     {
                         Debug.WriteLine("[ConfigManager] Config file not found, creating default...");
                         CreateDefaultConfig();
+                        LogToFile("[ConfigManager] Default config created");
                     }
                     else
                     {
                         Debug.WriteLine($"[ConfigManager] Loading config from: {Path.GetFullPath(configPath)}");
+                        LogToFile($"[ConfigManager] Loading config from: {Path.GetFullPath(configPath)}");
 
-                        // Пытаемся загрузить несколько раз с ожиданием
-                        bool loaded = false;
-                        int attempts = waitForConfig ? 10 : 3;
+                        LoadConfigFromFile();
 
-                        for (int i = 0; i < attempts; i++)
+                        // Логируем ключевые параметры
+                        string logMessage = $"[ConfigManager] Loaded config: ";
+                        foreach (var key in new[] { "isThisFirstLaunch", "autoStart", "pathOrigin", "currentConfig" })
                         {
-                            try
+                            if (_config.TryGetValue(key, out var value))
                             {
-                                LoadConfigFromFile();
-                                loaded = true;
-                                break;
-                            }
-                            catch (IOException ex) when (i < attempts - 1)
-                            {
-                                Debug.WriteLine($"[ConfigManager] Attempt {i + 1}/{attempts} failed: {ex.Message}");
-                                Thread.Sleep(100 * (i + 1)); // Увеличиваем задержку
+                                logMessage += $"{key}={value}, ";
                             }
                         }
-
-                        if (!loaded)
-                        {
-                            Debug.WriteLine("[ConfigManager] Failed to load config, creating default");
-                            CreateDefaultConfig();
-                        }
-                    }
-
-                    // Логируем ключевые параметры для отладки (БЕЗ использования GetValue!)
-                    Debug.WriteLine($"[ConfigManager] Config loaded successfully. Entries: {_config.Count}");
-
-                    // Просто выводим содержимое словаря без рекурсии
-                    foreach (var kvp in _config)
-                    {
-                        Debug.WriteLine($"[ConfigManager]   {kvp.Key} = {kvp.Value}");
+                        Debug.WriteLine(logMessage);
+                        LogToFile(logMessage);
                     }
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"[ConfigManager] Initialization error: {ex.Message}");
+                    LogToFile($"[ConfigManager] Initialization error: {ex.Message}");
                     CreateDefaultConfig();
                 }
 
                 _isInitialized = true;
-                _initEvent.Set();
             }
         }
 
-        // Ожидание инициализации
-        public static bool WaitForInitialization(int timeoutMs = 5000)
+        public static void Reload()
         {
-            return _initEvent.Wait(timeoutMs);
+            lock (_lock)
+            {
+                _isInitialized = false;
+                Initialize();
+            }
         }
 
         private static void LoadConfigFromFile()
         {
-            var lines = File.ReadAllLines(configPath);
-            foreach (var line in lines)
+            try
             {
-                var trimmed = line.Trim();
-                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
-                    continue;
-
-                var parts = trimmed.Split('=', 2);
-                if (parts.Length == 2)
+                // Читаем файл с несколькими попытками
+                string[] lines = null;
+                for (int i = 0; i < 3; i++)
                 {
-                    _config[parts[0].Trim()] = parts[1].Trim();
+                    try
+                    {
+                        lines = File.ReadAllLines(configPath);
+                        break;
+                    }
+                    catch (IOException) when (i < 2)
+                    {
+                        Thread.Sleep(100);
+                    }
                 }
+
+                if (lines == null)
+                {
+                    throw new IOException("Failed to read config file after 3 attempts");
+                }
+
+                var newConfig = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var line in lines)
+                {
+                    var trimmed = line.Trim();
+                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
+                        continue;
+
+                    var parts = trimmed.Split('=', 2);
+                    if (parts.Length == 2)
+                    {
+                        newConfig[parts[0].Trim()] = parts[1].Trim();
+                    }
+                }
+
+                _config = newConfig;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ConfigManager] LoadConfigFromFile error: {ex.Message}");
+                LogToFile($"[ConfigManager] LoadConfigFromFile error: {ex.Message}");
+                throw;
             }
         }
 
@@ -134,7 +140,8 @@ namespace UFZ.Lib
         {
             if (!_isInitialized)
             {
-                Debug.WriteLine($"[ConfigManager] Warning: Config not initialized when getting {key}");
+                Debug.WriteLine($"[ConfigManager] Config not initialized when getting {key}");
+                LogToFile($"[ConfigManager] Config not initialized when getting {key}");
                 Initialize();
             }
 
@@ -146,10 +153,7 @@ namespace UFZ.Lib
 
         public static void SetValue(string key, string value)
         {
-            if (!_isInitialized)
-            {
-                Initialize();
-            }
+            if (!_isInitialized) Initialize();
 
             lock (_lock)
             {
@@ -165,33 +169,49 @@ namespace UFZ.Lib
                 var lines = _config.Select(kvp => $"{kvp.Key} = {kvp.Value}");
                 File.WriteAllLines(configPath, lines);
                 Debug.WriteLine($"[ConfigManager] Config saved");
+                LogToFile($"[ConfigManager] Config saved");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ConfigManager] Save error: {ex.Message}");
+                LogToFile($"[ConfigManager] Save error: {ex.Message}");
             }
         }
 
         public static bool IsAutoStartEnabled()
         {
-            if (!_isInitialized)
-            {
-                Initialize();
-            }
+            if (!_isInitialized) Initialize();
 
             lock (_lock)
             {
-                // Получаем значение напрямую из словаря, без вызова GetValue
                 return _config.TryGetValue("autoStart", out var autoStart) && autoStart == "true";
             }
         }
 
-        // Новый метод для безопасного получения значений при инициализации
-        public static string GetValueDirect(string key, string defaultValue = "")
+        // Проверка валидности конфига для запуска приложения
+        public static bool IsConfigValidForStartup()
         {
+            if (!_isInitialized) Initialize();
+
             lock (_lock)
             {
-                return _config.TryGetValue(key, out var value) ? value : defaultValue;
+                // Проверяем только autoStart для авто-запуска
+                return true; // Всегда возвращаем true, так как pathOrigin не требуется для запуска приложения
+            }
+        }
+
+        // Вспомогательный метод для логирования в файл
+        private static void LogToFile(string message)
+        {
+            try
+            {
+                string logPath = "config_debug.log";
+                string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}\n";
+                File.AppendAllText(logPath, logEntry);
+            }
+            catch
+            {
+                // Игнорируем ошибки логирования
             }
         }
     }

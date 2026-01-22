@@ -11,29 +11,40 @@ namespace UFZapret.Forms
         {
             InitializeComponent();
 
-            // Перезагружаем конфиг для гарантии
-            ConfigManager.Initialize();
-
-            Debug.WriteLine($"[FormMain] startMinimized: {startMinimized}");
-            Debug.WriteLine($"[FormMain] autoStart: {ConfigManager.GetValue("autoStart")}");
+            // Логируем запуск
+            Debug.WriteLine($"[FormMain] Constructor called, startMinimized: {startMinimized}");
 
             // Автоматически сворачиваем в трей если это авто-запуск
             if (startMinimized)
             {
+                Debug.WriteLine("[FormMain] Auto-start mode, setting up tray minimization");
+
+                // Используем Load событие для сворачивания в трей
                 this.Load += (s, e) =>
                 {
-                    Debug.WriteLine("[FormMain] Minimizing to tray on load");
-                    MinimizeToTray();
+                    Debug.WriteLine("[FormMain] Form loaded, minimizing to tray");
+                    this.WindowState = FormWindowState.Minimized;
+                    this.ShowInTaskbar = false;
+
+                    // Инициализируем и показываем иконку в трее
+                    if (trayIcon != null)
+                    {
+                        trayIcon.Visible = true;
+                        trayIcon.ShowBalloonTip(2000, "UFZapret", "Приложение запущено в фоновом режиме", ToolTipIcon.Info);
+                    }
+
+                    Debug.WriteLine("[FormMain] Successfully minimized to tray");
                 };
             }
 
             // Инициализация остальных компонентов...
             AutoStartManager.SyncWithConfig();
 
+            // Проверяем конфиг еще раз для гарантии
+            ConfigManager.Reload();
+
             CheckIsConfigAvalible();
-
             InitializeTrayIcon();
-
             CheckAutoStartStatus();
 
             this.FormClosing += FormMain_FormClosing;
