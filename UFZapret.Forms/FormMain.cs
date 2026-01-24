@@ -37,9 +37,6 @@ namespace UFZapret.Forms
                 };
             }
 
-            // Инициализация остальных компонентов...
-            AutoStartManager.SyncWithConfig();
-
             // Проверяем конфиг еще раз для гарантии
             ConfigManager.Reload();
 

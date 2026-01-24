@@ -9,18 +9,29 @@ namespace UFZ.Lib
 {
     public static class ConfigManager
     {
-        private static string configPath = "Config.cfg";
+        private static string configPath;
         private static Dictionary<string, string> _config;
         private static readonly object _lock = new object();
         private static bool _isInitialized = false;
 
-        public static void Initialize()
+        public static void Initialize(string appDirectory = null)
         {
             if (_isInitialized) return;
 
             lock (_lock)
             {
                 if (_isInitialized) return;
+
+                // Устанавливаем абсолютный путь к конфигу
+                if (string.IsNullOrEmpty(appDirectory))
+                {
+                    // Используем папку приложения, а не рабочую директорию
+                    string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                    appDirectory = Path.GetDirectoryName(exePath);
+                }
+
+                configPath = Path.Combine(appDirectory, "Config.cfg");
+                Debug.WriteLine($"[ConfigManager] Config path: {configPath}");
 
                 _config = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
@@ -30,32 +41,16 @@ namespace UFZ.Lib
                     {
                         Debug.WriteLine("[ConfigManager] Config file not found, creating default...");
                         CreateDefaultConfig();
-                        LogToFile("[ConfigManager] Default config created");
                     }
                     else
                     {
-                        Debug.WriteLine($"[ConfigManager] Loading config from: {Path.GetFullPath(configPath)}");
-                        LogToFile($"[ConfigManager] Loading config from: {Path.GetFullPath(configPath)}");
-
+                        Debug.WriteLine($"[ConfigManager] Loading config from: {configPath}");
                         LoadConfigFromFile();
-
-                        // Логируем ключевые параметры
-                        string logMessage = $"[ConfigManager] Loaded config: ";
-                        foreach (var key in new[] { "isThisFirstLaunch", "autoStart", "pathOrigin", "currentConfig" })
-                        {
-                            if (_config.TryGetValue(key, out var value))
-                            {
-                                logMessage += $"{key}={value}, ";
-                            }
-                        }
-                        Debug.WriteLine(logMessage);
-                        LogToFile(logMessage);
                     }
                 }
                 catch (Exception ex)
                 {
                     Debug.WriteLine($"[ConfigManager] Initialization error: {ex.Message}");
-                    LogToFile($"[ConfigManager] Initialization error: {ex.Message}");
                     CreateDefaultConfig();
                 }
 
@@ -63,61 +58,20 @@ namespace UFZ.Lib
             }
         }
 
-        public static void Reload()
-        {
-            lock (_lock)
-            {
-                _isInitialized = false;
-                Initialize();
-            }
-        }
-
         private static void LoadConfigFromFile()
         {
-            try
+            var lines = File.ReadAllLines(configPath);
+            foreach (var line in lines)
             {
-                // Читаем файл с несколькими попытками
-                string[] lines = null;
-                for (int i = 0; i < 3; i++)
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
+                    continue;
+
+                var parts = trimmed.Split('=', 2);
+                if (parts.Length == 2)
                 {
-                    try
-                    {
-                        lines = File.ReadAllLines(configPath);
-                        break;
-                    }
-                    catch (IOException) when (i < 2)
-                    {
-                        Thread.Sleep(100);
-                    }
+                    _config[parts[0].Trim()] = parts[1].Trim();
                 }
-
-                if (lines == null)
-                {
-                    throw new IOException("Failed to read config file after 3 attempts");
-                }
-
-                var newConfig = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-
-                foreach (var line in lines)
-                {
-                    var trimmed = line.Trim();
-                    if (string.IsNullOrEmpty(trimmed) || trimmed.StartsWith("#"))
-                        continue;
-
-                    var parts = trimmed.Split('=', 2);
-                    if (parts.Length == 2)
-                    {
-                        newConfig[parts[0].Trim()] = parts[1].Trim();
-                    }
-                }
-
-                _config = newConfig;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[ConfigManager] LoadConfigFromFile error: {ex.Message}");
-                LogToFile($"[ConfigManager] LoadConfigFromFile error: {ex.Message}");
-                throw;
             }
         }
 
@@ -141,7 +95,6 @@ namespace UFZ.Lib
             if (!_isInitialized)
             {
                 Debug.WriteLine($"[ConfigManager] Config not initialized when getting {key}");
-                LogToFile($"[ConfigManager] Config not initialized when getting {key}");
                 Initialize();
             }
 
@@ -168,13 +121,11 @@ namespace UFZ.Lib
             {
                 var lines = _config.Select(kvp => $"{kvp.Key} = {kvp.Value}");
                 File.WriteAllLines(configPath, lines);
-                Debug.WriteLine($"[ConfigManager] Config saved");
-                LogToFile($"[ConfigManager] Config saved");
+                Debug.WriteLine($"[ConfigManager] Config saved to {configPath}");
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ConfigManager] Save error: {ex.Message}");
-                LogToFile($"[ConfigManager] Save error: {ex.Message}");
             }
         }
 
@@ -188,30 +139,12 @@ namespace UFZ.Lib
             }
         }
 
-        // Проверка валидности конфига для запуска приложения
-        public static bool IsConfigValidForStartup()
+        public static void Reload()
         {
-            if (!_isInitialized) Initialize();
-
             lock (_lock)
             {
-                // Проверяем только autoStart для авто-запуска
-                return true; // Всегда возвращаем true, так как pathOrigin не требуется для запуска приложения
-            }
-        }
-
-        // Вспомогательный метод для логирования в файл
-        private static void LogToFile(string message)
-        {
-            try
-            {
-                string logPath = "config_debug.log";
-                string logEntry = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] {message}\n";
-                File.AppendAllText(logPath, logEntry);
-            }
-            catch
-            {
-                // Игнорируем ошибки логирования
+                _isInitialized = false;
+                Initialize();
             }
         }
     }

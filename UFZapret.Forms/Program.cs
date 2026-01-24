@@ -14,147 +14,127 @@ namespace UFZapret.Forms
         [STAThread]
         static void Main(string[] args)
         {
-            // Временный лог для отладки авто-запуска
-            string debugLogPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "ufzapret_debug.txt");
-            File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Запуск с аргументами: {string.Join(" ", args)}\n");
-            File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Текущая директория: {Environment.CurrentDirectory}\n");
-
-            string isFirstLaunch, pathOrigin, currentConfig;
-            bool startMinimized;
-
             // Создаем мьютекс для предотвращения запуска нескольких копий
             bool createdNew;
             mutex = new Mutex(true, "UFZapret.Forms.SingleInstance", out createdNew);
 
+            string isFirstLaunch, pathOrigin, currentConfig, autoStart;
+
             if (!createdNew)
             {
-                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Приложение уже запущено\n");
-                MessageBox.Show("Приложение уже запущено!", "UFZapret",
-                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                // В авто-запуске не показываем сообщение, просто выходим
                 return;
             }
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Сразу покажем сплеш-экран при любом запуске для диагностики
+            // 1. ОПРЕДЕЛЯЕМ РЕЖИМ ЗАПУСКА ПО ФАКТУЧЕСКИМ АРГУМЕНТАМ
+            bool startMinimized = args.Contains("--minimized");
+
+            // 2. Показываем сплеш-экран сразу для любой загрузки
             using (var splash = new FormSplash())
             {
                 splash.Show();
                 Application.DoEvents();
 
-                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Показан сплеш-экран\n");
+                // 3. Устанавливаем ПРАВИЛЬНУЮ рабочую директорию
+                string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string appDirectory = Path.GetDirectoryName(exePath);
+                Directory.SetCurrentDirectory(appDirectory);
 
-                // Ждем 2 секунды для отладки
-                splash.UpdateStatus("Диагностика...");
-                Thread.Sleep(2000);
+                // 4. Инициализируем ConfigManager с правильным путем
+                ConfigManager.Initialize(appDirectory);
 
-                // Инициализируем ConfigManager
-                splash.UpdateStatus("Загрузка конфигурации...");
-                ConfigManager.Initialize();
+                DateTime startTime = DateTime.Now;
+                int maxWaitSeconds = 10;
+                bool configLoaded = false;
+                string status = "";
 
-                // Проверяем аргументы
-                startMinimized = args.Contains("--minimized");
-                bool isAutoStart = ConfigManager.IsAutoStartEnabled();
+                // 5. Ждем загрузки конфига
+                while (!configLoaded && (DateTime.Now - startTime).TotalSeconds < maxWaitSeconds)
+                {
+                    int secondsLeft = maxWaitSeconds - (int)(DateTime.Now - startTime).TotalSeconds;
 
-                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] startMinimized: {startMinimized}, isAutoStart: {isAutoStart}\n");
-                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Проверка реестра авто-запуска: {AutoStartManager.IsEnabled()}\n");
+                    // Проверяем ключевые параметры
+                    isFirstLaunch = ConfigManager.GetValue("isThisFirstLaunch", "true");
+                    pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
+                    currentConfig = ConfigManager.GetValue("currentConfig", "none");
+                    autoStart = ConfigManager.GetValue("autoStart", "false");
 
-                splash.UpdateStatus($"Аргументы: {string.Join(" ", args)}");
-                Thread.Sleep(2000);
+                    status = $"Загрузка: first={isFirstLaunch}, auto={autoStart} ({secondsLeft} сек)";
+                    splash.UpdateStatus(status);
+
+                    // Конфиг считается загруженным, если мы можем получить значение autoStart
+                    configLoaded = (autoStart == "true" || autoStart == "false");
+
+                    Thread.Sleep(200);
+                    Application.DoEvents();
+                }
 
                 splash.Close();
             }
 
-            // Проверяем, нужно ли показывать приветственный экран
+            // 6. ПОСЛЕ загрузки конфига определяем, что делать
+            bool isAutoStart = ConfigManager.IsAutoStartEnabled();
             isFirstLaunch = ConfigManager.GetValue("isThisFirstLaunch", "true");
             pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
             currentConfig = ConfigManager.GetValue("currentConfig", "none");
 
-            LogToFile($"Final check: isFirstLaunch={isFirstLaunch}, pathOrigin={pathOrigin}, currentConfig={currentConfig}");
+            // 7. ОСНОВНАЯ ЛОГИКА ЗАПУСКА
 
+            // Вариант A: Авто-запуск из Windows (даже без аргументов!)
+            bool isWindowsAutoStart = !startMinimized && isAutoStart && Environment.CurrentDirectory.Contains("system32");
+
+            // Вариант B: Явный авто-запуск с аргументом --minimized
+            bool isExplicitAutoStart = startMinimized && isAutoStart;
+
+            // Если это авто-запуск (любой вариант)
+            if (isWindowsAutoStart || isExplicitAutoStart)
+            {
+                // Показываем FormMain сразу, даже если это первый запуск
+                // Авто-запуск не должен показывать FormEntrance
+                var mainForm = new FormMain(true);
+                Application.Run(mainForm);
+                mutex?.ReleaseMutex();
+                return;
+            }
+
+            // 8. Обычный запуск (не авто-запуск)
             bool showEntrance = (isFirstLaunch == "true") || (pathOrigin == "none" && currentConfig == "none");
-            LogToFile($"Show entrance form: {showEntrance}");
 
-            FormMain mainForm = null;
+            FormMain mainForm2 = null;
 
             if (showEntrance)
             {
-                LogToFile("Showing FormEntrance...");
-
-                // Если это авто-запуск, не показываем FormEntrance, просто запускаем FormMain
-                if (startMinimized)
+                using (var formEntrance = new FormEntrance())
                 {
-                    LogToFile("Auto-start mode: bypassing FormEntrance, creating FormMain minimized");
-                    mainForm = new FormMain(true);
-                }
-                else
-                {
-                    // Показываем приветственное окно как диалог
-                    using (var formEntrance = new FormEntrance())
+                    if (formEntrance.ShowDialog() == DialogResult.OK)
                     {
-                        if (formEntrance.ShowDialog() == DialogResult.OK)
-                        {
-                            // Сохраняем, что это уже не первый запуск
-                            ConfigManager.SetValue("isThisFirstLaunch", "false");
-                            LogToFile("FormEntrance completed successfully");
-
-                            // Конфиг теперь должен быть валидным, создаем главную форму
-                            mainForm = new FormMain(startMinimized);
-                        }
-                        else
-                        {
-                            // Пользователь отменил
-                            LogToFile("FormEntrance cancelled by user");
-                            mutex?.ReleaseMutex();
-                            return;
-                        }
+                        ConfigManager.SetValue("isThisFirstLaunch", "false");
+                        mainForm2 = new FormMain(false);
+                    }
+                    else
+                    {
+                        mutex?.ReleaseMutex();
+                        return;
                     }
                 }
             }
             else
             {
-                LogToFile("Creating FormMain directly...");
-                // Обычный запуск
-                mainForm = new FormMain(startMinimized);
+                mainForm2 = new FormMain(false);
             }
 
-            // Подписываемся на события закрытия приложения
-            Application.ApplicationExit += OnApplicationExit;
-            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
-            AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+            if (mainForm2 != null)
+            {
+                Application.Run(mainForm2);
+            }
 
-            // Запускаем приложение
-            if (mainForm != null)
-            {
-                LogToFile("Starting application...");
-                try
-                {
-                    Application.Run(mainForm);
-                    LogToFile("Application run completed");
-                }
-                catch (Exception ex)
-                {
-                    LogToFile($"Critical error: {ex.Message}\n{ex.StackTrace}");
-                    MessageBox.Show($"Критическая ошибка: {ex.Message}\n\n{ex.StackTrace}",
-                        "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                }
-                finally
-                {
-                    // Гарантированная остановка при выходе
-                    LogToFile("Application exiting, cleaning up...");
-                    ZapretService.ForceStop();
-                    mutex?.ReleaseMutex();
-                }
-            }
-            else
-            {
-                LogToFile("Main form not created, exiting");
-                mutex?.ReleaseMutex();
-            }
+            mutex?.ReleaseMutex();
 
             LogToFile("Application exit completed");
-        }
+    }
 
         private static void LogToFile(string message)
         {

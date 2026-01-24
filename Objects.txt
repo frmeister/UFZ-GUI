@@ -9,6 +9,3 @@
 1) Dobavit' hohlomy
 
 	:: Bugs ::
-1) Tray phantow windows appeared
-2) X button on FormMain does not exits application
-3) _ button on FormMain does not hides application in tray
