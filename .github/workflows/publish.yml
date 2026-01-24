@@ -3,7 +3,7 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'  # Запуск при создании тега v1.0.0, v1.1.0 и т.д.
+      - 'v*'  # Запуск при создании тега v0.5, v0.6 и т.д.
 
 jobs:
   build:
@@ -17,33 +17,68 @@ jobs:
       with:
         dotnet-version: '8.0.x'
     
-    - name: Restore dependencies
-      run: dotnet restore
+    - name: Build Solution
+      run: |
+        echo "?? Сборка решения..."
+        dotnet build "UserFreindlyZapret-FlowSealOrigin.sln" -c Release
+        echo "? Решение собрано"
     
     - name: Publish Application
       run: |
-        # Публикуем проект (замени UFZapret на имя твоего .csproj файла)
-        dotnet publish UFZapret.Forms/UFZapret.Forms.csproj `
+        echo "?? Публикация приложения..."
+        
+        # Очистка старой папки publish
+        if (Test-Path "./publish") {
+          Remove-Item "./publish" -Recurse -Force
+        }
+        
+        # Публикуем проект
+        dotnet publish "UFZapret.Forms/UFZapret.Forms.csproj" `
           -c Release `
           -r win-x64 `
           --self-contained true `
           -p:PublishSingleFile=false `
-          -o ./publish/Release
+          -o ./publish
         
-        # Создаем папку .service если её нет
-        mkdir -p ./publish/Release/.service
+        # Создаем папку .service для version.txt
+        New-Item -ItemType Directory -Force -Path "./publish/.service"
         
-        # Создание version.txt
+        # Создание version.txt из тега
         $tag = "${{ github.ref_name }}"
         $version = $tag.Substring(1)  # Убираем "v"
-        echo $version | Out-File -FilePath "./publish/Release/.service/version.txt" -Encoding UTF8
+        $version | Out-File -FilePath "./publish/.service/version.txt" -Encoding UTF8
         
-        # Выводим список файлов для отладки
-        echo "=== Содержимое папки publish ==="
-        dir ./publish/Release -Recurse
+        # Выводим информацию о сборке
+        echo "? Проект опубликован"
+        echo "?? Содержимое папки publish:"
+        Get-ChildItem "./publish" | Format-Table Name, Length, LastWriteTime
         
-        # Создание ZIP архива (только содержимое Release папки)
-        Compress-Archive -Path ./publish/Release/* -DestinationPath ./UFZapret-$version.zip -Force
+        # Ищем .exe файл
+        $exeFile = Get-ChildItem -Path "./publish" -Filter *.exe -Recurse | Select-Object -First 1
+        if ($exeFile) {
+          echo "? Найден .exe файл: $($exeFile.Name)"
+          echo "?? Путь: $($exeFile.FullName)"
+          echo "?? Размер: $($exeFile.Length) байт"
+        } else {
+          echo "? .exe файл не найден!"
+          exit 1
+        }
+    
+    - name: Create ZIP Archive
+      run: |
+        $tag = "${{ github.ref_name }}"
+        $version = $tag.Substring(1)
+        $zipName = "UFZapret-v$version.zip"
+        
+        echo "?? Создание архива: $zipName"
+        
+        # Создаем ZIP архив из папки publish
+        Compress-Archive -Path "./publish/*" -DestinationPath "./$zipName" -Force
+        
+        # Проверяем архив
+        $zipSize = (Get-Item "./$zipName").Length
+        echo "? Архив создан: $zipName"
+        echo "?? Размер архива: $zipSize байт"
     
     - name: Upload Release
       uses: softprops/action-gh-release@v1
