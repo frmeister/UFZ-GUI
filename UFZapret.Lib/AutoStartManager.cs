@@ -2,6 +2,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 
 namespace UFZapret.Lib
 {
@@ -17,11 +18,14 @@ namespace UFZapret.Lib
                 using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, false))
                 {
                     if (key == null) return false;
-                    return key.GetValue(AppName) != null;
+
+                    object value = key.GetValue(AppName);
+                    return value != null && !string.IsNullOrEmpty(value.ToString());
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[AutoStart] Ошибка проверки: {ex.Message}");
                 return false;
             }
         }
@@ -30,17 +34,22 @@ namespace UFZapret.Lib
         {
             try
             {
-                // Получаем путь к exe через Assembly
-                string exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-
-                if (string.IsNullOrEmpty(exePath))
+                // Получаем путь к EXE файлу
+                string exePath = GetExecutablePath();
+                if (string.IsNullOrEmpty(exePath) || !File.Exists(exePath))
                 {
-                    Debug.WriteLine("[AutoStart] Не удалось получить путь к программе");
+                    Debug.WriteLine($"[AutoStart] Не удалось найти exe файл: {exePath}");
                     return false;
                 }
 
-                // Формируем команду с АБСОЛЮТНЫМ путем
-                string command = $"\"{exePath}\" {arguments}";
+                Debug.WriteLine($"[AutoStart] Путь к exe: {exePath}");
+
+                // Формируем команду для реестра
+                string command = $"\"{exePath}\"";
+                if (!string.IsNullOrWhiteSpace(arguments))
+                {
+                    command += $" {arguments}";
+                }
 
                 Debug.WriteLine($"[AutoStart] Команда для реестра: {command}");
 
@@ -61,8 +70,18 @@ namespace UFZapret.Lib
                     }
                 }
 
-                Debug.WriteLine($"[AutoStart] Успешно добавлен в реестр с аргументами: '{arguments}'");
-                return true;
+                // Проверяем результат
+                bool success = IsEnabled();
+                Debug.WriteLine(success
+                    ? "[AutoStart] Успешно добавлен в реестр"
+                    : "[AutoStart] Не удалось добавить в реестр");
+
+                return success;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                Debug.WriteLine($"[AutoStart] Нет прав на запись в реестр: {ex.Message}");
+                return false;
             }
             catch (Exception ex)
             {
@@ -71,6 +90,97 @@ namespace UFZapret.Lib
             }
         }
 
+        private static string GetExecutablePath()
+        {
+            try
+            {
+                // Метод 1: Получаем путь через Entry Assembly
+                string assemblyPath = Assembly.GetEntryAssembly().Location;
+                Debug.WriteLine($"[AutoStart] Assembly path: {assemblyPath}");
+
+                // Если это dll, пробуем найти exe с тем же именем
+                if (assemblyPath.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Заменяем расширение .dll на .exe
+                    string exePath = Path.ChangeExtension(assemblyPath, ".exe");
+
+                    if (File.Exists(exePath))
+                    {
+                        Debug.WriteLine($"[AutoStart] Found exe: {exePath}");
+                        return exePath;
+                    }
+
+                    // Ищем в директории публикации
+                    string publishPath = GetPublishExecutablePath();
+                    if (!string.IsNullOrEmpty(publishPath) && File.Exists(publishPath))
+                    {
+                        Debug.WriteLine($"[AutoStart] Found publish exe: {publishPath}");
+                        return publishPath;
+                    }
+                }
+
+                // Если это уже exe, возвращаем как есть
+                if (assemblyPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                {
+                    return assemblyPath;
+                }
+
+                // Метод 2: Пробуем через Process
+                using (Process process = Process.GetCurrentProcess())
+                {
+                    string processPath = process.MainModule.FileName;
+                    Debug.WriteLine($"[AutoStart] Process path: {processPath}");
+
+                    if (processPath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return processPath;
+                    }
+                }
+
+                Debug.WriteLine("[AutoStart] Could not find exe path");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AutoStart] Ошибка получения пути: {ex.Message}");
+                return null;
+            }
+        }
+
+        private static string GetPublishExecutablePath()
+        {
+            try
+            {
+                // Получаем базовую директорию
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                Debug.WriteLine($"[AutoStart] Base directory: {baseDir}");
+
+                // Ищем exe файлы в директории
+                string[] exeFiles = Directory.GetFiles(baseDir, "*.exe", SearchOption.TopDirectoryOnly);
+
+                foreach (string exeFile in exeFiles)
+                {
+                    Debug.WriteLine($"[AutoStart] Found exe in directory: {exeFile}");
+
+                    // Пытаемся найти основной exe файл (не vshost, не .config, не .manifest)
+                    string fileName = Path.GetFileName(exeFile);
+                    if (!fileName.Contains("vshost") &&
+                        !fileName.EndsWith(".config.exe") &&
+                        !fileName.EndsWith(".manifest.exe"))
+                    {
+                        return exeFile;
+                    }
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // Остальные методы без изменений...
         public static bool Disable()
         {
             try
@@ -82,13 +192,38 @@ namespace UFZapret.Lib
                     return true;
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[AutoStart] Ошибка отключения: {ex.Message}");
                 return false;
             }
         }
 
-        // В FormEntrance вызывайте так:
-        // AutoStartManager.Enable("--minimized");
+        public static void SyncWithConfig()
+        {
+            try
+            {
+                bool autoStartInConfig = DataService.GetAutoStart();
+                bool autoStartInRegistry = IsEnabled();
+
+                if (autoStartInConfig != autoStartInRegistry)
+                {
+                    Debug.WriteLine($"[AutoStart] Расхождение: Config={autoStartInConfig}, Registry={autoStartInRegistry}");
+
+                    if (autoStartInConfig)
+                    {
+                        Enable(DataService.GetStartupArguments());
+                    }
+                    else
+                    {
+                        Disable();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AutoStart] Ошибка синхронизации: {ex.Message}");
+            }
+        }
     }
 }
