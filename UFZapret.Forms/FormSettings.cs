@@ -11,6 +11,7 @@ using System.Windows.Forms;
 using UFZ.Lib;
 using UFZapret.Lib;
 using static System.Net.Mime.MediaTypeNames;
+using Application = System.Windows.Forms.Application;
 
 namespace UFZapret.Forms
 {
@@ -141,11 +142,67 @@ namespace UFZapret.Forms
         }
 
         // Обработчик кнопки обновления GUI
-        private void settings_buttonUpdate_Click(object sender, EventArgs e)
+        private async void settings_buttonUpdate_Click(object sender, EventArgs e)
         {
-            // Здесь будет логика обновления GUI приложения
-            MessageBox.Show("Функция обновления GUI будет реализована позже",
-                "Информация", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            try
+            {
+                settings_buttonUpdate.Enabled = false;
+                UpdateStatus_Version("\n⏳ Скачивание обновления...", 1);
+                Application.DoEvents();
+
+                // 1. Получаем ссылку на архив
+                string downloadUrl = await AppUpdater.GetLatestReleaseDownloadUrl();
+                if (string.IsNullOrEmpty(downloadUrl))
+                {
+                    MessageBox.Show("Не удалось получить ссылку на обновление", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // 2. Подтверждение
+                var result = MessageBox.Show(
+                    "Загрузить и установить обновление?\n\n" +
+                    "Приложение будет перезапущено автоматически.",
+                    "Подтверждение обновления",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question);
+
+                if (result != DialogResult.Yes)
+                    return;
+
+                UpdateStatus_Version("\n📦 Установка обновления...", 1);
+                Application.DoEvents();
+
+                // 3. Скачиваем и устанавливаем обновление
+                bool success = await AppUpdater.UpdateAppAsync(downloadUrl);
+
+                if (success)
+                {
+                    UpdateStatus_Version("\n✅ Обновление установлено!", 1);
+
+                    // Перезапуск приложения
+                    MessageBox.Show("Обновление успешно установлено. Приложение будет перезапущено.",
+                        "Готово", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    Application.Restart();
+                    Environment.Exit(0);
+                }
+                else
+                {
+                    UpdateStatus_Version("\n❌ Ошибка обновления", 1);
+                    MessageBox.Show("Не удалось установить обновление", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[FormSettings] Ошибка обновления: {ex.Message}");
+                UpdateStatus_Version($"\n❌ Ошибка: {ex.Message}", 1);
+            }
+            finally
+            {
+                settings_buttonUpdate.Enabled = true;
+            }
         }
     }
-}
+} //

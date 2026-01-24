@@ -17,21 +17,39 @@ jobs:
       with:
         dotnet-version: '8.0.x'
     
+    - name: Restore dependencies
+      run: dotnet restore
+    
     - name: Publish Application
       run: |
-        dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ./publish
+        # Публикуем проект (замени UFZapret на имя твоего .csproj файла)
+        dotnet publish UFZapret.Forms/UFZapret.Forms.csproj `
+          -c Release `
+          -r win-x64 `
+          --self-contained true `
+          -p:PublishSingleFile=false `
+          -o ./publish/Release
+        
+        # Создаем папку .service если её нет
+        mkdir -p ./publish/Release/.service
         
         # Создание version.txt
         $tag = "${{ github.ref_name }}"
         $version = $tag.Substring(1)  # Убираем "v"
-        echo $version > ./publish/.service/version.txt
+        echo $version | Out-File -FilePath "./publish/Release/.service/version.txt" -Encoding UTF8
         
-        # Создание ZIP архива
-        Compress-Archive -Path ./publish/* -DestinationPath ./UFZapret-$version.zip
+        # Выводим список файлов для отладки
+        echo "=== Содержимое папки publish ==="
+        dir ./publish/Release -Recurse
+        
+        # Создание ZIP архива (только содержимое Release папки)
+        Compress-Archive -Path ./publish/Release/* -DestinationPath ./UFZapret-$version.zip -Force
     
-    - name: Create Release
+    - name: Upload Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           ./UFZapret-*.zip
         generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

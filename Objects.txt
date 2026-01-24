@@ -1,7 +1,6 @@
 	:: Logic ::
-1) zapret updater -> Logic formulated -> get version of origin and compare it w/
-2) Application updater
-4) Desing workflow
+1) Application updater
+2) Desing workflow
 
 
 	:: Design ::
@@ -12,4 +11,4 @@
 
 	:: Features ::
 1) Add styles to FormSplash
-2)
+2) Add
