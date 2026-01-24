@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Threading;
 using UFZ.Lib;
+using UFZapret.Lib;
 
 namespace UFZapret.Forms
 {
@@ -13,15 +14,13 @@ namespace UFZapret.Forms
         [STAThread]
         static void Main(string[] args)
         {
-            // Начинаем логирование
-            LogToFile("========================================");
-            LogToFile($"[{DateTime.Now}] Application starting");
-            LogToFile($"Args: {string.Join(" ", args)}");
-            LogToFile($"Working directory: {Environment.CurrentDirectory}");
+            // Временный лог для отладки авто-запуска
+            string debugLogPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), "ufzapret_debug.txt");
+            File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Запуск с аргументами: {string.Join(" ", args)}\n");
+            File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Текущая директория: {Environment.CurrentDirectory}\n");
 
-            string isFirstLaunch = null;
-            string pathOrigin = null;
-            string currentConfig = null;
+            string isFirstLaunch, pathOrigin, currentConfig;
+            bool startMinimized;
 
             // Создаем мьютекс для предотвращения запуска нескольких копий
             bool createdNew;
@@ -29,7 +28,7 @@ namespace UFZapret.Forms
 
             if (!createdNew)
             {
-                LogToFile("Application already running, exiting");
+                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Приложение уже запущено\n");
                 MessageBox.Show("Приложение уже запущено!", "UFZapret",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
@@ -38,66 +37,33 @@ namespace UFZapret.Forms
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            // Инициализируем ConfigManager сразу
-            LogToFile("Initializing ConfigManager...");
-            ConfigManager.Initialize();
-            LogToFile("ConfigManager initialized");
-
-            // Определяем режим запуска
-            bool startMinimized = args.Contains("--minimized");
-            bool isAutoStart = ConfigManager.IsAutoStartEnabled();
-
-            LogToFile($"startMinimized: {startMinimized}");
-            LogToFile($"autoStart from config: {isAutoStart}");
-
-            // Если это автозапуск, но autoStart=false в конфиге, выходим
-            if (startMinimized && !isAutoStart)
+            // Сразу покажем сплеш-экран при любом запуске для диагностики
+            using (var splash = new FormSplash())
             {
-                LogToFile("Auto-start disabled in config, exiting");
-                mutex?.ReleaseMutex();
-                return;
-            }
+                splash.Show();
+                Application.DoEvents();
 
-            // Проверяем, нужен ли сплеш-экран для автозапуска
-            if (startMinimized)
-            {
-                LogToFile("Auto-start mode detected, showing splash screen");
+                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Показан сплеш-экран\n");
 
-                using (var splash = new FormSplash())
-                {
-                    splash.Show();
-                    Application.DoEvents();
+                // Ждем 2 секунды для отладки
+                splash.UpdateStatus("Диагностика...");
+                Thread.Sleep(2000);
 
-                    DateTime startTime = DateTime.Now;
-                    int maxWaitSeconds = 10;
-                    bool configValid = false;
+                // Инициализируем ConfigManager
+                splash.UpdateStatus("Загрузка конфигурации...");
+                ConfigManager.Initialize();
 
-                    // Ждем, пока конфиг станет полностью загруженным
-                    while (!configValid && (DateTime.Now - startTime).TotalSeconds < maxWaitSeconds)
-                    {
-                        int secondsLeft = maxWaitSeconds - (int)(DateTime.Now - startTime).TotalSeconds;
-                        splash.UpdateStatus($"Загрузка конфигурации... {secondsLeft} сек");
-                        Application.DoEvents();
-                        Thread.Sleep(200);
+                // Проверяем аргументы
+                startMinimized = args.Contains("--minimized");
+                bool isAutoStart = ConfigManager.IsAutoStartEnabled();
 
-                        // Перезагружаем конфиг
-                        ConfigManager.Reload();
+                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] startMinimized: {startMinimized}, isAutoStart: {isAutoStart}\n");
+                File.AppendAllText(debugLogPath, $"[{DateTime.Now}] Проверка реестра авто-запуска: {AutoStartManager.IsEnabled()}\n");
 
-                        // Проверяем ключевые параметры
-                        isFirstLaunch = ConfigManager.GetValue("isThisFirstLaunch", "true");
-                        pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
-                        currentConfig = ConfigManager.GetValue("currentConfig", "none");
+                splash.UpdateStatus($"Аргументы: {string.Join(" ", args)}");
+                Thread.Sleep(2000);
 
-                        LogToFile($"Check: isFirstLaunch={isFirstLaunch}, pathOrigin={pathOrigin}, currentConfig={currentConfig}");
-
-                        // Конфиг считается валидным, если он загружен (isFirstLaunch имеет значение)
-                        configValid = (isFirstLaunch != "true" || (pathOrigin != "none" && currentConfig != "none"));
-
-                        LogToFile($"Config valid: {configValid}");
-                    }
-
-                    splash.Close();
-                }
+                splash.Close();
             }
 
             // Проверяем, нужно ли показывать приветственный экран

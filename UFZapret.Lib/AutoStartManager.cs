@@ -41,6 +41,7 @@ namespace UFZapret.Lib
                 }
 
                 Debug.WriteLine($"[AutoStart] Путь к exe: {exePath}");
+                Debug.WriteLine($"[AutoStart] Аргументы для авто-запуска: '{arguments}'");
 
                 // Формируем команду
                 string command = $"\"{exePath}\"";
@@ -49,24 +50,23 @@ namespace UFZapret.Lib
                     command += $" {arguments}";
                 }
 
-                Debug.WriteLine($"[AutoStart] Команда: {command}");
+                Debug.WriteLine($"[AutoStart] Команда для реестра: {command}");
 
                 // Создаем или открываем ключ
-                RegistryKey key = null;
-                try
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, true))
                 {
-                    key = Registry.CurrentUser.OpenSubKey(RegistryKeyPath, true);
                     if (key == null)
                     {
                         // Создаем ключ, если его нет
-                        key = Registry.CurrentUser.CreateSubKey(RegistryKeyPath, true);
+                        using (RegistryKey newKey = Registry.CurrentUser.CreateSubKey(RegistryKeyPath, true))
+                        {
+                            newKey.SetValue(AppName, command, RegistryValueKind.String);
+                        }
                     }
-
-                    key.SetValue(AppName, command, RegistryValueKind.String);
-                }
-                finally
-                {
-                    key?.Dispose();
+                    else
+                    {
+                        key.SetValue(AppName, command, RegistryValueKind.String);
+                    }
                 }
 
                 // Проверяем результат
@@ -161,5 +161,6 @@ namespace UFZapret.Lib
                 Debug.WriteLine($"[AutoStart] Ошибка синхронизации: {ex.Message}");
             }
         }
+
     }
 }
