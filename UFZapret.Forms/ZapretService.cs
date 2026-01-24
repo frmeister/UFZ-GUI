@@ -6,6 +6,7 @@ using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using UFZapret.Lib;
 
 namespace UFZapret.Forms
 {
@@ -520,5 +521,96 @@ namespace UFZapret.Forms
                 try { process?.Dispose(); } catch { }
             }
         }
+
+        // ===== Методы теста ====
+
+        public static async Task<bool> TestConfigAsync(string folderPath, string configName, int testDurationMs = 10000)
+        {
+            try
+            {
+                Debug.WriteLine($"[ZapretService] Testing config: {configName}");
+
+                // Запускаем конфиг
+                bool started = await Start(folderPath, configName);
+                if (!started)
+                {
+                    Debug.WriteLine($"[ZapretService] Failed to start config: {configName}");
+                    return false;
+                }
+
+                // Ждем немного для применения конфига
+                await Task.Delay(2000);
+
+                // Тестируем подключение
+                bool isWorking = await NetworkTester.TestNetworkConnectivityAsync();
+
+                // Останавливаем конфиг после теста
+                await Stop();
+
+                Debug.WriteLine($"[ZapretService] Config {configName} test result: {isWorking}");
+                return isWorking;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ZapretService] TestConfigAsync error: {ex.Message}");
+                await Stop(); // Гарантированная остановка при ошибке
+                return false;
+            }
+        }
+
+        // Fast Test
+        public static async Task<string> FindWorkingConfigAsync(string folderPath, IProgress<string> progress = null)
+        {
+            try
+            {
+                if (!Directory.Exists(folderPath))
+                {
+                    Debug.WriteLine($"[ZapretService] Folder not found: {folderPath}");
+                    return null;
+                }
+
+                // Ищем все .bat файлы конфигов
+                var configFiles = Directory.GetFiles(folderPath, "*.bat")
+                    .Select(Path.GetFileName)
+                    .Where(f => !f.Contains("update") && !f.Contains("install"))
+                    .ToList();
+
+                if (configFiles.Count == 0)
+                {
+                    Debug.WriteLine($"[ZapretService] No config files found in: {folderPath}");
+                    return null;
+                }
+
+                Debug.WriteLine($"[ZapretService] Found {configFiles.Count} configs to test");
+
+                string workingConfig = null;
+
+                foreach (var configFile in configFiles)
+                {
+                    progress?.Report($"Тестирование: {configFile}");
+
+                    // Тестируем каждый конфиг
+                    bool isWorking = await TestConfigAsync(folderPath, configFile);
+
+                    if (isWorking)
+                    {
+                        workingConfig = configFile;
+                        progress?.Report($"Найден рабочий конфиг: {configFile}");
+                        break;
+                    }
+
+                    // Пауза между тестами чтобы сеть устаканилась
+                    await Task.Delay(1000);
+                }
+
+                return workingConfig;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[ZapretService] FindWorkingConfigAsync error: {ex.Message}");
+                return null;
+            }
+        }
+
     }
 }

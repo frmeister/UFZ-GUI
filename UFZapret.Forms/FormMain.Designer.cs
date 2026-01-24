@@ -31,13 +31,12 @@
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormMain));
             panelGeneral = new Panel();
+            buttonSettings = new Button();
             textBoxStatus = new TextBox();
             buttonConfiguration = new Button();
-            textBoxInfo = new TextBox();
             panelStatus = new Panel();
             buttonStart = new Button();
             splitter1 = new Splitter();
-            buttonSettings = new Button();
             panelGeneral.SuspendLayout();
             panelStatus.SuspendLayout();
             SuspendLayout();
@@ -48,18 +47,27 @@
             panelGeneral.Controls.Add(buttonSettings);
             panelGeneral.Controls.Add(textBoxStatus);
             panelGeneral.Controls.Add(buttonConfiguration);
-            panelGeneral.Controls.Add(textBoxInfo);
             panelGeneral.Dock = DockStyle.Top;
             panelGeneral.Location = new Point(0, 0);
             panelGeneral.Name = "panelGeneral";
             panelGeneral.Size = new Size(784, 96);
             panelGeneral.TabIndex = 0;
             // 
+            // buttonSettings
+            // 
+            buttonSettings.Image = (Image)resources.GetObject("buttonSettings.Image");
+            buttonSettings.Location = new Point(596, 3);
+            buttonSettings.Name = "buttonSettings";
+            buttonSettings.Size = new Size(86, 87);
+            buttonSettings.TabIndex = 3;
+            buttonSettings.UseVisualStyleBackColor = true;
+            buttonSettings.Click += buttonSettings_Click;
+            // 
             // textBoxStatus
             // 
             textBoxStatus.Enabled = false;
             textBoxStatus.Font = new Font("Meiryo UI", 12F);
-            textBoxStatus.Location = new Point(231, 3);
+            textBoxStatus.Location = new Point(226, 3);
             textBoxStatus.Multiline = true;
             textBoxStatus.Name = "textBoxStatus";
             textBoxStatus.Size = new Size(303, 87);
@@ -76,19 +84,6 @@
             buttonConfiguration.TabIndex = 1;
             buttonConfiguration.UseVisualStyleBackColor = true;
             buttonConfiguration.Click += buttonConfiguration_Click;
-            // 
-            // textBoxInfo
-            // 
-            textBoxInfo.Anchor = AnchorStyles.Left;
-            textBoxInfo.BackColor = Color.White;
-            textBoxInfo.Enabled = false;
-            textBoxInfo.Font = new Font("Meiryo UI", 12F);
-            textBoxInfo.Location = new Point(3, 3);
-            textBoxInfo.Multiline = true;
-            textBoxInfo.Name = "textBoxInfo";
-            textBoxInfo.Size = new Size(222, 87);
-            textBoxInfo.TabIndex = 0;
-            textBoxInfo.Text = "Тестовая программа, для упрощения работы с Zapret\r\n";
             // 
             // panelStatus
             // 
@@ -121,16 +116,6 @@
             splitter1.TabIndex = 0;
             splitter1.TabStop = false;
             // 
-            // buttonSettings
-            // 
-            buttonSettings.Image = (Image)resources.GetObject("buttonSettings.Image");
-            buttonSettings.Location = new Point(596, 3);
-            buttonSettings.Name = "buttonSettings";
-            buttonSettings.Size = new Size(86, 87);
-            buttonSettings.TabIndex = 3;
-            buttonSettings.UseVisualStyleBackColor = true;
-            buttonSettings.Click += buttonSettings_Click;
-            // 
             // FormMain
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -154,7 +139,6 @@
 
         private Panel panelGeneral;
         private Panel panelStatus;
-        private TextBox textBoxInfo;
         private Splitter splitter1;
         private Button buttonConfiguration;
         private TextBox textBoxStatus;

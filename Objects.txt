@@ -1,7 +1,6 @@
 	:: Logic ::
 1) zapret updater -> Logic formulated -> get version of origin and compare it w/
 2) Application updater
-3) Startup manager
 4) Desing workflow
 
 
@@ -9,3 +8,8 @@
 1) Dobavit' hohlomy
 
 	:: Bugs ::
+
+
+	:: Features ::
+1) Add styles to FormSplash
+2)

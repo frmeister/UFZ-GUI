@@ -84,7 +84,7 @@ namespace UFZ.Lib
                 { "currentConfig", "none" },
                 { "autoStart", "false" },
                 { "startupArgs", "none" },
-                { "appVersion", "0.21" },
+                { "appVersion", "0.4" },
                 { "originVersion", "none" }
             };
             SaveConfig();

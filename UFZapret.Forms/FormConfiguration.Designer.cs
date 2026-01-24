@@ -29,10 +29,12 @@
         private void InitializeComponent()
         {
             config_panelGeneral = new Panel();
+            config_buttonDownload = new Button();
             config_buttonChangeCfg = new Button();
             config_textBoxInfo = new TextBox();
             config_buttonAutoCfg = new Button();
             config_panelToolBox = new Panel();
+            config_labelStatus = new Label();
             config_button24 = new Button();
             config_button22 = new Button();
             config_button20 = new Button();
@@ -64,7 +66,6 @@
             config_splitter = new Splitter();
             splitter1 = new Splitter();
             config_folderBrowserDialogCfg = new FolderBrowserDialog();
-            config_buttonDownload = new Button();
             config_panelGeneral.SuspendLayout();
             config_panelToolBox.SuspendLayout();
             SuspendLayout();
@@ -80,6 +81,19 @@
             config_panelGeneral.Name = "config_panelGeneral";
             config_panelGeneral.Size = new Size(634, 72);
             config_panelGeneral.TabIndex = 0;
+            // 
+            // config_buttonDownload
+            // 
+            config_buttonDownload.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            config_buttonDownload.Enabled = false;
+            config_buttonDownload.Location = new Point(434, 3);
+            config_buttonDownload.Name = "config_buttonDownload";
+            config_buttonDownload.Size = new Size(91, 66);
+            config_buttonDownload.TabIndex = 2;
+            config_buttonDownload.Text = "Download";
+            config_buttonDownload.UseVisualStyleBackColor = true;
+            config_buttonDownload.Visible = false;
+            config_buttonDownload.Click += config_buttonDownload_Click;
             // 
             // config_buttonChangeCfg
             // 
@@ -117,6 +131,7 @@
             // config_panelToolBox
             // 
             config_panelToolBox.BackColor = Color.FromArgb(192, 255, 192);
+            config_panelToolBox.Controls.Add(config_labelStatus);
             config_panelToolBox.Controls.Add(config_button24);
             config_panelToolBox.Controls.Add(config_button22);
             config_panelToolBox.Controls.Add(config_button20);
@@ -153,6 +168,19 @@
             config_panelToolBox.Name = "config_panelToolBox";
             config_panelToolBox.Size = new Size(634, 689);
             config_panelToolBox.TabIndex = 1;
+            // 
+            // config_labelStatus
+            // 
+            config_labelStatus.BackColor = SystemColors.MenuBar;
+            config_labelStatus.BorderStyle = BorderStyle.FixedSingle;
+            config_labelStatus.Location = new Point(9, 477);
+            config_labelStatus.MaximumSize = new Size(400, 50);
+            config_labelStatus.MinimumSize = new Size(400, 50);
+            config_labelStatus.Name = "config_labelStatus";
+            config_labelStatus.Size = new Size(400, 50);
+            config_labelStatus.TabIndex = 4;
+            config_labelStatus.Text = "Auto Search Status";
+            config_labelStatus.TextAlign = ContentAlignment.MiddleLeft;
             // 
             // config_button24
             // 
@@ -432,19 +460,6 @@
             splitter1.TabIndex = 0;
             splitter1.TabStop = false;
             // 
-            // config_buttonDownload
-            // 
-            config_buttonDownload.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            config_buttonDownload.Enabled = false;
-            config_buttonDownload.Location = new Point(434, 3);
-            config_buttonDownload.Name = "config_buttonDownload";
-            config_buttonDownload.Size = new Size(91, 66);
-            config_buttonDownload.TabIndex = 2;
-            config_buttonDownload.Text = "Download";
-            config_buttonDownload.UseVisualStyleBackColor = true;
-            config_buttonDownload.Visible = false;
-            config_buttonDownload.Click += config_buttonDownload_Click;
-            // 
             // FormConfiguration
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
@@ -503,5 +518,6 @@
         private Button config_button2;
         private Button config_button1;
         private Button config_buttonDownload;
+        private Label config_labelStatus;
     }
 }

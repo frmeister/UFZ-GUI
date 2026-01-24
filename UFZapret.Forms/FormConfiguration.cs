@@ -2,9 +2,12 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Text;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Xml.Linq;
@@ -17,9 +20,10 @@ namespace UFZapret.Forms
     {
         string folderPath;
         string configName;
-
         private List<Button> configButtons; // Список всех кнопок
         private List<string> batFiles; // Список найденных .bat файлов
+        private CancellationTokenSource _autoConfigCancellation;
+
         public FormConfiguration()
         {
             InitializeComponent();
@@ -30,9 +34,36 @@ namespace UFZapret.Forms
 
             DrawCurrentPath();
 
-            Updater_Origin();
+            this.Load += FormConfiguration_Load;
 
             StatusDownload_Origin();
+
+            // Кнопка отмены
+            var cancelButton = new Button
+            {
+                Text = "Отмена",
+                Location = new Point(config_buttonAutoCfg.Right + 10, config_buttonAutoCfg.Top),
+                Size = config_buttonAutoCfg.Size,
+                Visible = false
+            };
+
+            cancelButton.Click += (s, e) =>
+            {
+                _autoConfigCancellation?.Cancel();
+            };
+
+            this.Controls.Add(cancelButton);
+
+            config_buttonAutoCfg.EnabledChanged += (s, e) =>
+            {
+                cancelButton.Visible = !config_buttonAutoCfg.Enabled;
+            };
+
+        }
+
+        private async void FormConfiguration_Load(object sender, EventArgs e)
+        {
+            await CheckForUpdatesAsync();
         }
 
         #region LOGIC
@@ -129,20 +160,20 @@ namespace UFZapret.Forms
         private void DrawCurrentPath()
         {
             folderPath = ConfigManager.GetValue("pathOrigin", "none");
-            configName = ConfigManager.GetValue("currentConfig", "none"); // ← ДО заполнения кнопок!
+            configName = ConfigManager.GetValue("currentConfig", "none");
 
             if (folderPath != "none" && Directory.Exists(folderPath))
             {
-                // Сначала получаем список файлов
-                var files = GetBatFiles(folderPath);
+                // Получаем список файлов и сохраняем в batFiles
+                batFiles = GetBatFiles(folderPath);
 
                 // Заполняем кнопки
-                CfgButtonsEnableAndFill(files);
+                CfgButtonsEnableAndFill(batFiles);
 
-                UpdateStatus_Config($"Directory found!", 0);
+                UpdateStatus_Config($"Найдено конфигов: {batFiles.Count}", 0);
 
-                // Теперь ищем и деактивируем
-                if (configName != "none")
+                // Теперь ищем и деактивируем выбранный конфиг
+                if (configName != "none" && configName != "")
                 {
                     string configNameWithoutExtension = configName.Replace(".bat", "");
 
@@ -152,7 +183,7 @@ namespace UFZapret.Forms
                         {
                             button.Enabled = false;
                             button.BackColor = Color.LightGray;
-                            UpdateStatus_Config($"Выбран конфиг:\n{button.Text}", 1); // NOT WORKING
+                            UpdateStatus_Config($"\nВыбран конфиг: {button.Text}", 1);
                             break;
                         }
                     }
@@ -164,21 +195,44 @@ namespace UFZapret.Forms
             }
         }
 
-        private void Updater_Origin()
+        private async Task CheckForUpdatesAsync()
         {
-            ConfigManager.SetValue("originVersion", DataService.GetLocalVersion_Origin(folderPath));
-
-            if(DataService.IsThereUpdateZapret_Origin(folderPath))
+            try
             {
-                config_buttonUpdate.Enabled = true;
+                config_buttonUpdate.Enabled = false;
+                UpdateStatus_Info("Проверка обновлений...", 0);
+                Application.DoEvents(); // Обновляем UI
 
-                UpdateStatus_Info("\n$New version of Zapret is avalible!", 0);
+                // Проверяем, указан ли путь
+                if (string.IsNullOrEmpty(folderPath) || folderPath == "none" || !Directory.Exists(folderPath))
+                {
+                    UpdateStatus_Info("\n$Путь к zapret не указан", 0);
+                    return;
+                }
+
+                // Проверяем обновление
+                bool updateAvailable = await DataService.IsThereUpdateZapret_OriginAsync(folderPath, true);
+
+                Debug.WriteLine($"[FormConfiguration] Результат проверки: {updateAvailable}");
+
+                if (updateAvailable)
+                {
+                    UpdateStatus_Info("\n$Доступно обновление!", 0);
+                    config_buttonUpdate.Enabled = true;
+                }
+                else
+                {
+                    UpdateStatus_Info("\n$Установлена последняя версия", 0);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                UpdateStatus_Info("\n$Stable version", 0);
+                Debug.WriteLine($"[FormConfiguration] Ошибка в CheckForUpdatesAsync: {ex.Message}");
+                UpdateStatus_Info($"\n$Ошибка: {ex.Message}", 0);
             }
         }
+
+
 
         #endregion
 
@@ -199,7 +253,7 @@ namespace UFZapret.Forms
 
         private void UpdateStatus_Config(string text, int row)
         {
-            switch(row)
+            switch (row)
             {
                 case 0:
                     config_textBoxConfigMaster.Text = text;
@@ -216,6 +270,155 @@ namespace UFZapret.Forms
             {
                 config_buttonDownload.Enabled = true;
                 config_buttonDownload.Visible = true;
+            }
+        }
+
+        #endregion
+
+        #region AUTO-CONFIG SEARCH
+
+        private async Task<string> FindWorkingConfigWithProgress(IProgress<string> progress, CancellationToken cancellationToken)
+        {
+            try
+            {
+                // Проверяем наличие файлов
+                if (batFiles == null || batFiles.Count == 0)
+                {
+                    progress?.Report("Конфиги не найдены");
+                    return null;
+                }
+
+                // Останавливаем текущий запущенный конфиг, если есть
+                if (ZapretService.IsRunning)
+                {
+                    progress?.Report("Останавливаем текущий конфиг...");
+                    await ZapretService.Stop();
+                    await Task.Delay(1000, cancellationToken);
+                }
+
+                progress?.Report($"Найдено конфигов: {batFiles.Count}");
+                await Task.Delay(500, cancellationToken);
+
+                string workingConfig = null;
+                int tested = 0;
+
+                foreach (var configFile in batFiles)
+                {
+                    // Проверяем отмену
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    tested++;
+                    string fileName = Path.GetFileName(configFile);
+                    progress?.Report($"Тестируем ({tested}/{batFiles.Count}): {fileName}");
+
+                    // Тестируем конфиг
+                    bool isWorking = await ZapretService.TestConfigAsync(folderPath, fileName);
+
+                    if (isWorking)
+                    {
+                        workingConfig = fileName;
+                        progress?.Report($"✓ Найден рабочий конфиг: {fileName}");
+                        break;
+                    }
+
+                    progress?.Report($"✗ Конфиг не работает: {fileName}");
+
+                    // Пауза между тестами
+                    await Task.Delay(2000, cancellationToken);
+                }
+
+                return workingConfig;
+            }
+            catch (OperationCanceledException)
+            {
+                // Гарантированно останавливаем zapret при отмене
+                await ZapretService.Stop();
+                throw;
+            }
+            catch (Exception ex)
+            {
+                progress?.Report($"Ошибка: {ex.Message}");
+                return null;
+            }
+        }
+
+        private async void config_buttonAutoCfg_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // Проверяем, указан ли путь к zapret
+                string pathOrigin = ConfigManager.GetValue("pathOrigin", "none");
+                if (pathOrigin == "none" || !Directory.Exists(pathOrigin))
+                {
+                    MessageBox.Show("Сначала укажите путь к zapret в настройках!", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Проверяем наличие конфигов
+                if (batFiles == null || batFiles.Count == 0)
+                {
+                    MessageBox.Show("Конфиги не найдены в указанной папке!", "Ошибка",
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                // Блокируем кнопку на время поиска
+                config_buttonAutoCfg.Enabled = false;
+                config_buttonAutoCfg.Text = "Поиск...";
+
+                // Создаем токен отмены
+                _autoConfigCancellation = new CancellationTokenSource();
+
+                // Показываем прогресс
+                var progress = new Progress<string>(message =>
+                {
+                    config_labelStatus.Text = message;
+                    config_labelStatus.Refresh();
+                });
+
+                // Запускаем поиск асинхронно
+                string workingConfig = await FindWorkingConfigWithProgress(progress, _autoConfigCancellation.Token);
+
+                // Обрабатываем результат
+                if (!string.IsNullOrEmpty(workingConfig))
+                {
+                    // Сохраняем найденный конфиг
+                    ConfigManager.SetValue("currentConfig", workingConfig);
+
+                    // Обновляем интерфейс
+                    DrawCurrentPath();
+
+                    MessageBox.Show($"Найден рабочий конфиг: {workingConfig}\n\nКонфиг сохранен и выбран.",
+                        "Успех", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Не удалось найти рабочий конфиг.\n\nПопробуйте:\n" +
+                        "1. Проверить подключение к интернету\n" +
+                        "2. Обновить конфиги через кнопку 'Обновить'\n" +
+                        "3. Выбрать конфиг вручную",
+                        "Результат поиска", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                MessageBox.Show("Поиск конфига отменен", "Информация",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка при поиске конфига: {ex.Message}", "Ошибка",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                // Восстанавливаем кнопку
+                config_buttonAutoCfg.Enabled = true;
+                config_buttonAutoCfg.Text = "Авто-подбор конфига";
+                config_labelStatus.Text = "Готово";
+                _autoConfigCancellation?.Dispose();
+                _autoConfigCancellation = null;
             }
         }
 
@@ -254,7 +457,7 @@ namespace UFZapret.Forms
             configName = clickedButton.Text + ".bat";
 
             // 4. Показываем информацию о выборе
-            UpdateStatus_Config($"Выбран конфиг:\n{clickedButton.Text}", 1);
+            UpdateStatus_Config($"\nВыбран конфиг:\n{clickedButton.Text}", 1);
         }
 
         private void config_buttonUpdate_Click(object sender, EventArgs e)
@@ -310,11 +513,6 @@ namespace UFZapret.Forms
             CfgButtonsEnableAndFill(GetBatFiles(folderPath));
         }
 
-        private void config_buttonAutoCfg_Click(object sender, EventArgs e)
-        {
-
-        }
-
         private void config_buttonDownload_Click(object sender, EventArgs e)
         {
             config_folderBrowserDialogCfg.ShowDialog();
@@ -339,6 +537,5 @@ namespace UFZapret.Forms
         }
 
         #endregion
-
     }
 }

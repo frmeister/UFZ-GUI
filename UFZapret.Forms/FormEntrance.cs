@@ -122,7 +122,7 @@ namespace UFZapret.Forms
 
         private void entrance_buttonDownload_Click(object sender, EventArgs e)
         {
-            MessageBox.Show("Куда хотите установить Zapret (можно установить в папку приложения)",
+            MessageBox.Show("Куда хотите установить Zapret (лучше установить в папку приложения)",
                 "Установка",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Exclamation);

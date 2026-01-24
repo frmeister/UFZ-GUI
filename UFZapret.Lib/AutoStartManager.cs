@@ -180,7 +180,6 @@ namespace UFZapret.Lib
             }
         }
 
-        // Остальные методы без изменений...
         public static bool Disable()
         {
             try

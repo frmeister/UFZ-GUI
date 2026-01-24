@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Runtime.CompilerServices;
 using UFZ.Lib;
 using static System.Net.WebRequestMethods;
 using File = System.IO.File;
@@ -8,7 +9,7 @@ namespace UFZapret.Lib
 {
     public class DataService
     {
-        
+
         // Prohibits program of starting on entrance form every launch
         public bool IsFirstLaunch()
         {
@@ -64,7 +65,7 @@ namespace UFZapret.Lib
             string pathValue = path + "\\UFZapretUpdater_Zapret.bat";
 
             string updateText =
-                "cd \\\n"+
+                "cd \\\n" +
                 "cd " + path + "\n" +
                 "git clone https://github.com/Flowseal/zapret-discord-youtube";
 
@@ -150,27 +151,84 @@ namespace UFZapret.Lib
             File.Delete(pathValue);
         }
 
-        public static bool IsThereUpdateZapret_Origin(string path)
-        {
 
-            return false;
+        public static async Task<bool> IsThereUpdateZapret_OriginAsync(string path, bool appOrOrigin)
+        {
+            try
+            {
+                string localVersion;
+
+                if (appOrOrigin) // true = проверка обновлений zapret
+                {
+                    // Получаем локальную версию zapret из файла
+                    localVersion = GetLocalVersion_Origin(path);
+                    Debug.WriteLine($"[DataService] Локальная версия zapret: '{localVersion}'");
+                }
+                else // false = проверка обновлений GUI
+                {
+                    // Получаем локальную версию GUI из конфига
+                    localVersion = GetLocalVersion_Gui();
+                    Debug.WriteLine($"[DataService] Локальная версия GUI: '{localVersion}'");
+                }
+
+                // Проверяем обновление
+                bool updateNeeded = await UpdateManager.CheckUpdateNeededAsync(localVersion, appOrOrigin);
+
+                Debug.WriteLine($"[DataService] Обновление требуется: {updateNeeded}");
+                return updateNeeded;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[DataService] Ошибка проверки обновлений: {ex.Message}");
+                return false;
+            }
         }
 
         public static string GetLocalVersion_Origin(string path)
         {
-            string value = "none";
-
-            if (GitExisting_Zapret(path))
+            try
             {
-                value = File.ReadAllText(path + "\\.service\\version.txt");
+                if (string.IsNullOrEmpty(path) || path == "none" || !Directory.Exists(path))
+                {
+                    return "none";
+                }
 
-                return value;
+                string versionFilePath = Path.Combine(path, ".service", "version.txt");
+
+                if (!File.Exists(versionFilePath))
+                {
+                    Debug.WriteLine($"[DataService] Файл version.txt не найден: {versionFilePath}");
+                    return "none";
+                }
+
+                string version = File.ReadAllText(versionFilePath).Trim();
+                Debug.WriteLine($"[DataService] Прочитана локальная версия zapret: '{version}'");
+
+                return version;
             }
-            else
+            catch (Exception ex)
             {
-                return value;
+                Debug.WriteLine($"[DataService] Ошибка чтения версии zapret: {ex.Message}");
+                return "none";
             }
         }
+
+        public static string GetLocalVersion_Gui()
+        {
+            try
+            {
+                string version = ConfigManager.GetValue("appVersion", "0.4");
+                Debug.WriteLine($"[DataService] Локальная версия GUI из конфига: '{version}'");
+                return version;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[DataService] Ошибка чтения версии GUI: {ex.Message}");
+                return "0.21";
+            }
+        }
+
+
 
         #endregion
     }

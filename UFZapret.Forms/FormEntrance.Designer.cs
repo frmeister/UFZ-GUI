@@ -28,36 +28,49 @@
         /// </summary>
         private void InitializeComponent()
         {
+            System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormEntrance));
             entrance_buttonClose = new Button();
             entrance_folderBrowserDialogHello = new FolderBrowserDialog();
             entrance_buttonDownload = new Button();
+            textBox1 = new TextBox();
             SuspendLayout();
             // 
             // entrance_buttonClose
             // 
-            entrance_buttonClose.Location = new Point(541, 310);
+            entrance_buttonClose.Location = new Point(317, 393);
             entrance_buttonClose.Name = "entrance_buttonClose";
-            entrance_buttonClose.Size = new Size(151, 131);
+            entrance_buttonClose.Size = new Size(134, 50);
             entrance_buttonClose.TabIndex = 0;
-            entrance_buttonClose.Text = "Yes";
+            entrance_buttonClose.Text = "Путь";
             entrance_buttonClose.UseVisualStyleBackColor = true;
             entrance_buttonClose.Click += entrance_buttonClose_Click;
             // 
             // entrance_buttonDownload
             // 
-            entrance_buttonDownload.Location = new Point(215, 321);
+            entrance_buttonDownload.Location = new Point(305, 267);
             entrance_buttonDownload.Name = "entrance_buttonDownload";
             entrance_buttonDownload.Size = new Size(157, 120);
             entrance_buttonDownload.TabIndex = 1;
-            entrance_buttonDownload.Text = "Download";
+            entrance_buttonDownload.Text = "Установить";
             entrance_buttonDownload.UseVisualStyleBackColor = true;
             entrance_buttonDownload.Click += entrance_buttonDownload_Click;
+            // 
+            // textBox1
+            // 
+            textBox1.Font = new Font("Segoe UI Emoji", 12F, FontStyle.Regular, GraphicsUnit.Point, 0);
+            textBox1.Location = new Point(183, 73);
+            textBox1.Multiline = true;
+            textBox1.Name = "textBox1";
+            textBox1.Size = new Size(416, 188);
+            textBox1.TabIndex = 2;
+            textBox1.Text = resources.GetString("textBox1.Text");
             // 
             // FormEntrance
             // 
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(784, 561);
+            Controls.Add(textBox1);
             Controls.Add(entrance_buttonDownload);
             Controls.Add(entrance_buttonClose);
             MaximizeBox = false;
@@ -66,6 +79,7 @@
             Name = "FormEntrance";
             Text = "Hello";
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
@@ -73,5 +87,6 @@
         private Button entrance_buttonClose;
         private FolderBrowserDialog entrance_folderBrowserDialogHello;
         private Button entrance_buttonDownload;
+        private TextBox textBox1;
     }
 }
