@@ -1,0 +1,37 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Запуск при создании тега v1.0.0, v1.1.0 и т.д.
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Publish Application
+      run: |
+        dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o ./publish
+        
+        # Создание version.txt
+        $tag = "${{ github.ref_name }}"
+        $version = $tag.Substring(1)  # Убираем "v"
+        echo $version > ./publish/.service/version.txt
+        
+        # Создание ZIP архива
+        Compress-Archive -Path ./publish/* -DestinationPath ./UFZapret-$version.zip
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./UFZapret-*.zip
+        generate_release_notes: true
