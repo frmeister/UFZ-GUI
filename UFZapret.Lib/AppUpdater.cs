@@ -14,7 +14,7 @@ namespace UFZapret.Lib
         private static readonly HttpClient _httpClient = new HttpClient();
 
         // Скачивание и установка обновления
-        private static async Task<bool> UpdateAppAsync(string downloadUrl)
+        public static async Task<bool> UpdateAppAsync(string downloadUrl)
         {
             try
             {
