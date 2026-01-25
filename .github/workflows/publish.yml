@@ -44,7 +44,6 @@ jobs:
 
         echo $version | Out-File -FilePath "./publish/version.txt" -Encoding UTF8
 
-        mkdir -p "./publish/.service"
         echo $version | Out-File -FilePath "./publish/.service/version.txt" -Encoding UTF8
     
     - name: Create ZIP Archive
