@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
-using System.IO;
 
 namespace UFZapret.Lib
 {
@@ -19,15 +18,35 @@ namespace UFZapret.Lib
             _httpClient.Timeout = TimeSpan.FromSeconds(10);
         }
 
-        // Получение онлайн-версии через файл version.txt
+        // Получение онлайн-версии (разная логика для zapret и GUI)
         public static async Task<string> GetOnlineVersionAsync(bool appOrOrigin)
         {
             try
             {
-                string fileUrl = appOrOrigin ?
-                    $"https://raw.githubusercontent.com/{ZapretRepo}/main/.service/version.txt" :
-                    $"https://raw.githubusercontent.com/{ApplicationRepo}/main/.service/version.txt";
+                if (appOrOrigin)
+                {
+                    // Для ZAPRET: читаем version.txt из репозитория
+                    return await GetZapretVersionFromFileAsync();
+                }
+                else
+                {
+                    // Для GUI: получаем версию из GitHub Releases
+                    return await GetGuiVersionFromReleasesAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[UpdateManager] Ошибка GetOnlineVersionAsync: {ex.Message}");
+                return "error";
+            }
+        }
 
+        // Для zapret: читаем version.txt из .service папки
+        private static async Task<string> GetZapretVersionFromFileAsync()
+        {
+            try
+            {
+                string fileUrl = $"https://raw.githubusercontent.com/{ZapretRepo}/main/.service/version.txt";
                 var response = await _httpClient.GetAsync(fileUrl);
 
                 if (!response.IsSuccessStatusCode)
@@ -36,12 +55,46 @@ namespace UFZapret.Lib
                 string version = await response.Content.ReadAsStringAsync();
                 version = version.Trim();
 
-                Debug.WriteLine($"[UpdateManager] Онлайн-версия ({(appOrOrigin ? "zapret" : "app")}): {version}");
+                Debug.WriteLine($"[UpdateManager] Версия zapret: {version}");
                 return CleanVersionString(version);
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[UpdateManager] Ошибка: {ex.Message}");
+                Debug.WriteLine($"[UpdateManager] Ошибка zapret: {ex.Message}");
+                return "error";
+            }
+        }
+
+        // Для GUI: получаем версию из GitHub Releases API
+        private static async Task<string> GetGuiVersionFromReleasesAsync()
+        {
+            try
+            {
+                string apiUrl = $"https://api.github.com/repos/{ApplicationRepo}/releases/latest";
+                var response = await _httpClient.GetAsync(apiUrl);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Debug.WriteLine($"[UpdateManager] API вернул: {response.StatusCode}");
+                    return "error";
+                }
+
+                var json = await response.Content.ReadAsStringAsync();
+                using var doc = JsonDocument.Parse(json);
+
+                // Получаем тег релиза (версию)
+                if (doc.RootElement.TryGetProperty("tag_name", out var tagName))
+                {
+                    string version = tagName.GetString();
+                    Debug.WriteLine($"[UpdateManager] Версия GUI из релиза: {version}");
+                    return CleanVersionString(version);
+                }
+
+                return "unknown";
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[UpdateManager] Ошибка GUI релиза: {ex.Message}");
                 return "error";
             }
         }
@@ -61,7 +114,7 @@ namespace UFZapret.Lib
 
                 string onlineVersion = await GetOnlineVersionAsync(appOrOrigin);
 
-                if (onlineVersion == "error")
+                if (onlineVersion == "error" || onlineVersion == "unknown")
                 {
                     Debug.WriteLine($"[UpdateManager] Не удалось получить онлайн-версию");
                     return false;
