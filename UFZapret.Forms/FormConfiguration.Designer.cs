@@ -72,7 +72,7 @@
             // 
             // config_panelGeneral
             // 
-            config_panelGeneral.BackColor = Color.FromArgb(255, 255, 192);
+            config_panelGeneral.BackColor = SystemColors.AppWorkspace;
             config_panelGeneral.Controls.Add(config_buttonDownload);
             config_panelGeneral.Controls.Add(config_buttonChangeCfg);
             config_panelGeneral.Controls.Add(config_textBoxInfo);
@@ -130,7 +130,7 @@
             // 
             // config_panelToolBox
             // 
-            config_panelToolBox.BackColor = Color.FromArgb(192, 255, 192);
+            config_panelToolBox.BackColor = SystemColors.Control;
             config_panelToolBox.Controls.Add(config_labelStatus);
             config_panelToolBox.Controls.Add(config_button24);
             config_panelToolBox.Controls.Add(config_button22);

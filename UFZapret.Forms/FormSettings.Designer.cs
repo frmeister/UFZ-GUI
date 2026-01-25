@@ -31,6 +31,7 @@
             settings_panelGeneral = new Panel();
             settings_textBoxInfo = new TextBox();
             settings_panelMain = new Panel();
+            settings_buttonTheme = new Button();
             settings_checkBoxStartMinimized = new CheckBox();
             settings_checkBoxAutoStart = new CheckBox();
             settings_textBoxAutoStart = new TextBox();
@@ -45,7 +46,7 @@
             // 
             // settings_panelGeneral
             // 
-            settings_panelGeneral.BackColor = Color.FromArgb(255, 255, 192);
+            settings_panelGeneral.BackColor = SystemColors.AppWorkspace;
             settings_panelGeneral.Controls.Add(settings_textBoxInfo);
             settings_panelGeneral.Dock = DockStyle.Top;
             settings_panelGeneral.Location = new Point(0, 0);
@@ -61,10 +62,12 @@
             settings_textBoxInfo.Name = "settings_textBoxInfo";
             settings_textBoxInfo.Size = new Size(237, 94);
             settings_textBoxInfo.TabIndex = 0;
+            settings_textBoxInfo.Text = "Info =D";
             // 
             // settings_panelMain
             // 
-            settings_panelMain.BackColor = Color.FromArgb(192, 255, 192);
+            settings_panelMain.BackColor = SystemColors.Control;
+            settings_panelMain.Controls.Add(settings_buttonTheme);
             settings_panelMain.Controls.Add(settings_checkBoxStartMinimized);
             settings_panelMain.Controls.Add(settings_checkBoxAutoStart);
             settings_panelMain.Controls.Add(settings_textBoxAutoStart);
@@ -78,6 +81,15 @@
             settings_panelMain.Name = "settings_panelMain";
             settings_panelMain.Size = new Size(634, 661);
             settings_panelMain.TabIndex = 0;
+            // 
+            // settings_buttonTheme
+            // 
+            settings_buttonTheme.Location = new Point(532, 95);
+            settings_buttonTheme.Name = "settings_buttonTheme";
+            settings_buttonTheme.Size = new Size(90, 68);
+            settings_buttonTheme.TabIndex = 7;
+            settings_buttonTheme.UseVisualStyleBackColor = true;
+            settings_buttonTheme.Click += settings_buttonTheme_Click;
             // 
             // settings_checkBoxStartMinimized
             // 
@@ -108,7 +120,7 @@
             settings_textBoxAutoStart.Name = "settings_textBoxAutoStart";
             settings_textBoxAutoStart.Size = new Size(237, 81);
             settings_textBoxAutoStart.TabIndex = 4;
-            settings_textBoxAutoStart.Text = "Добавление программы в автозапуск:\r\nStatus:";
+            settings_textBoxAutoStart.Text = "Добавление программы в автозапуск:\r\n(НЕ РЕКОМЕНДУЕТСЯ ОТКЛЮЧАТЬ АВТОЗАПУСК ЧЕРЕЗ ДИСПЕТЧЕР ЗАДАЧ)";
             // 
             // settings_textBoxVersion
             // 
@@ -118,7 +130,6 @@
             settings_textBoxVersion.Name = "settings_textBoxVersion";
             settings_textBoxVersion.Size = new Size(237, 82);
             settings_textBoxVersion.TabIndex = 3;
-            settings_textBoxVersion.Text = "Current Version of program:";
             // 
             // settings_buttonCancel
             // 
@@ -194,5 +205,6 @@
         private CheckBox settings_checkBoxAutoStart;
         private TextBox settings_textBoxAutoStart;
         private CheckBox settings_checkBoxStartMinimized;
+        private Button settings_buttonTheme;
     }
 }

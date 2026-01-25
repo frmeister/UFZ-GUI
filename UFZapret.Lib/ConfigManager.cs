@@ -10,9 +10,12 @@ namespace UFZ.Lib
     public static class ConfigManager
     {
         private static string configPath;
+        private static string localPath = ".\\.service\\version.txt";
         private static Dictionary<string, string> _config;
         private static readonly object _lock = new object();
         private static bool _isInitialized = false;
+
+        private static string verByDefault = "0.5.5";
 
         public static void Initialize(string appDirectory = null)
         {
@@ -84,8 +87,9 @@ namespace UFZ.Lib
                 { "currentConfig", "none" },
                 { "autoStart", "false" },
                 { "startupArgs", "none" },
-                { "appVersion", "0.5.4" },
-                { "originVersion", "none" }
+                { "appVersion", GetLocalAppVer(localPath) },
+                { "originVersion", "none" },
+                { "theme", "default"}
             };
             SaveConfig();
         }
@@ -145,6 +149,26 @@ namespace UFZ.Lib
             {
                 _isInitialized = false;
                 Initialize();
+            }
+        }
+
+        private static string GetLocalAppVer(string path)
+        {
+            string value;
+            Debug.WriteLine("[ConfigManager] : Parsing local app version");
+
+            if (File.Exists(path))
+            {
+                value = File.ReadAllText(path);
+                Debug.WriteLine($"[ConfigManager] : Found local version: {value}");
+
+
+                return value;
+            }
+            else
+            {
+                Debug.WriteLine("[ConfigManager] : Local version was not found! Set version by default: " + verByDefault);
+                return verByDefault;
             }
         }
     }

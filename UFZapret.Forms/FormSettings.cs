@@ -40,6 +40,10 @@ namespace UFZapret.Forms
             settings_checkBoxAutoStart.Checked = DataService.GetAutoStart();
             settings_checkBoxStartMinimized.Checked = DataService.GetStartupArguments() == "--minimized";
             settings_checkBoxStartMinimized.Enabled = settings_checkBoxAutoStart.Checked;
+
+            // Theme
+            settings_buttonTheme.Enabled = true;
+            settings_buttonTheme.Text = ConfigManager.GetValue("theme", "");
         }
 
         private void settings_buttonCancel_Click(object sender, EventArgs e)
@@ -134,6 +138,8 @@ namespace UFZapret.Forms
                               "Попробуйте запустить программу от имени администратора.",
                               "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
+
+            ConfigManager.SetValue("theme", settings_buttonTheme.Text);
         }
 
         private void settings_checkBoxAutoStart_CheckedChanged_1(object sender, EventArgs e)
@@ -202,6 +208,19 @@ namespace UFZapret.Forms
             finally
             {
                 settings_buttonUpdate.Enabled = true;
+            }
+        }
+
+        private void settings_buttonTheme_Click(object sender, EventArgs e)
+        {
+            if (settings_buttonTheme.Text == "default")
+            {
+                settings_buttonTheme.Text = "hohloma";
+            }
+
+            if (settings_buttonTheme.Text == "hohloma")
+            {
+                settings_buttonTheme.Text = "default";
             }
         }
     }

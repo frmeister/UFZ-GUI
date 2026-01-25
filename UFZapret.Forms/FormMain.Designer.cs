@@ -43,7 +43,7 @@
             // 
             // panelGeneral
             // 
-            panelGeneral.BackColor = Color.FromArgb(255, 255, 192);
+            panelGeneral.BackColor = SystemColors.AppWorkspace;
             panelGeneral.Controls.Add(buttonSettings);
             panelGeneral.Controls.Add(textBoxStatus);
             panelGeneral.Controls.Add(buttonConfiguration);
@@ -87,7 +87,7 @@
             // 
             // panelStatus
             // 
-            panelStatus.BackColor = Color.FromArgb(192, 255, 192);
+            panelStatus.BackColor = SystemColors.Control;
             panelStatus.Controls.Add(buttonStart);
             panelStatus.Controls.Add(splitter1);
             panelStatus.Dock = DockStyle.Fill;

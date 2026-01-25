@@ -57,9 +57,9 @@ namespace UFZapret.Forms
         {
             // Создаем контекстное меню для трея
             trayMenu = new ContextMenuStrip();
-            trayMenu.Items.Add("Развернуть", null, OnTrayRestore);
+            trayMenu.Items.Add("Open", null, OnTrayRestore);
             trayMenu.Items.Add(new ToolStripSeparator());
-            trayMenu.Items.Add("Выход", null, OnTrayExit);
+            trayMenu.Items.Add("Exit", null, OnTrayExit);
 
             // Создаем иконку в трее
             trayIcon = new NotifyIcon
@@ -327,6 +327,11 @@ namespace UFZapret.Forms
             {
                 MinimizeToTray();
             }
+        }
+
+        private void ThemeChanger()
+        {
+
         }
 
         #endregion
