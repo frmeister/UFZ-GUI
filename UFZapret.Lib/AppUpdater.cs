@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
+using UFZ.Lib;
 
 namespace UFZapret.Lib
 {
@@ -13,7 +14,7 @@ namespace UFZapret.Lib
         private static readonly HttpClient _httpClient = new HttpClient();
 
         // Скачивание и установка обновления
-        public static async Task<bool> UpdateAppAsync(string downloadUrl)
+        private static async Task<bool> UpdateAppAsync(string downloadUrl)
         {
             try
             {
@@ -42,7 +43,15 @@ namespace UFZapret.Lib
                 // 5. Копируем файлы, заменяя старые
                 await CopyFilesWithUpdateAsync(tempDir, appDir);
 
-                // 6. Очищаем временные файлы
+                // 6. ОБНОВЛЯЕМ ВЕРСИЮ В КОНФИГЕ
+                string newVersion = await ReadVersionFromUpdateAsync(tempDir);
+                if (!string.IsNullOrEmpty(newVersion))
+                {
+                    Debug.WriteLine($"[AppUpdater] Обновляем версию в конфиге: {newVersion}");
+                    ConfigManager.SetValue("appVersion", newVersion);
+                }
+
+                // 7. Очищаем временные файлы
                 Directory.Delete(tempDir, true);
 
                 Debug.WriteLine($"[AppUpdater] Обновление завершено");
@@ -58,7 +67,11 @@ namespace UFZapret.Lib
         private static async Task CopyFilesWithUpdateAsync(string sourceDir, string targetDir)
         {
             // Исключаем файлы, которые не нужно обновлять
-            var excludeFiles = new[] { "Config.cfg", "app_startup.log", "config_debug.log" };
+            var excludeFiles = new[] {
+                "Config.cfg",           // Настройки пользователя
+                "app_startup.log",      // Логи
+                "config_debug.log"      // Логи
+            };
 
             foreach (var sourceFile in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
             {
@@ -80,12 +93,6 @@ namespace UFZapret.Lib
                 // Копируем файл
                 Debug.WriteLine($"[AppUpdater] Обновляем: {relativePath}");
                 File.Copy(sourceFile, targetFile, true);
-
-                // Для exe файлов ждем немного
-                if (Path.GetExtension(sourceFile).Equals(".exe", StringComparison.OrdinalIgnoreCase))
-                {
-                    await Task.Delay(100);
-                }
             }
         }
 
@@ -122,5 +129,33 @@ namespace UFZapret.Lib
                 return null;
             }
         }
+
+        private static async Task<string> ReadVersionFromUpdateAsync(string tempDir)
+        {
+            try
+            {
+                string versionPath = Path.Combine(tempDir, ".service", "version.txt");
+                if (File.Exists(versionPath))
+                {
+                    string version = await File.ReadAllTextAsync(versionPath);
+                    return version.Trim();
+                }
+
+                // Или ищем в корне архива
+                versionPath = Path.Combine(tempDir, "version.txt");
+                if (File.Exists(versionPath))
+                {
+                    string version = await File.ReadAllTextAsync(versionPath);
+                    return version.Trim();
+                }
+
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
     }
 }

@@ -41,7 +41,11 @@ jobs:
         New-Item -ItemType Directory -Force -Path "./publish/.service"
         $tag = "${{ github.ref_name }}"
         $version = $tag.Substring(1)
-        $version | Out-File -FilePath "./publish/.service/version.txt" -Encoding UTF8
+
+        echo $version | Out-File -FilePath "./publish/version.txt" -Encoding UTF8
+
+        mkdir -p "./publish/.service"
+        echo $version | Out-File -FilePath "./publish/.service/version.txt" -Encoding UTF8
     
     - name: Create ZIP Archive
       id: create_zip
