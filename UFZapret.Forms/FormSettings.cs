@@ -48,6 +48,9 @@ namespace UFZapret.Forms
 
         private void settings_buttonCancel_Click(object sender, EventArgs e)
         {
+            /*FormMain fm = new FormMain(false);
+            fm.ThemeChanger(); */ // BUG
+
             this.Close();
         }
 
@@ -217,8 +220,7 @@ namespace UFZapret.Forms
             {
                 settings_buttonTheme.Text = "hohloma";
             }
-
-            if (settings_buttonTheme.Text == "hohloma")
+            else if (settings_buttonTheme.Text == "hohloma")
             {
                 settings_buttonTheme.Text = "default";
             }

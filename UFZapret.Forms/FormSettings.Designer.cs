@@ -174,6 +174,7 @@
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(634, 761);
+            ControlBox = false;
             Controls.Add(settings_panelMain);
             Controls.Add(settings_panelGeneral);
             MaximumSize = new Size(650, 800);

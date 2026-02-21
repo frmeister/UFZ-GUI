@@ -1,14 +1,15 @@
 	:: Logic ::
-1) Application updater
-2) Desing workflow
+1) Application updater -> Download manager
+2) Desing workflow (hohloma button)
 
 
 	:: Design ::
-1) Dobavit' hohlomy
+1) Dobavit' hohlomy (refers to obj. 2 of logic)
 
 	:: Bugs ::
-
+1) RU symbols output from github repos.
 
 	:: Features ::
 1) Add styles to FormSplash
-2) Add
+
+refactoring

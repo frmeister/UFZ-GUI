@@ -73,26 +73,45 @@ namespace UFZapret.Lib
                 "config_debug.log"      // Логи
             };
 
+            Debug.WriteLine($"[AppUpdater] Начинаем копирование из {sourceDir} в {targetDir}");
+
+            // Получаем ВСЕ файлы рекурсивно
             foreach (var sourceFile in Directory.GetFiles(sourceDir, "*", SearchOption.AllDirectories))
             {
+                // Получаем относительный путь от корня sourceDir
                 string relativePath = Path.GetRelativePath(sourceDir, sourceFile);
                 string targetFile = Path.Combine(targetDir, relativePath);
 
-                // Пропускаем исключенные файлы
-                if (excludeFiles.Any(f => relativePath.EndsWith(f, StringComparison.OrdinalIgnoreCase)))
+                // Проверяем, не является ли файл исключенным (только имя файла)
+                string fileName = Path.GetFileName(relativePath);
+                if (excludeFiles.Contains(fileName, StringComparer.OrdinalIgnoreCase))
                 {
-                    Debug.WriteLine($"[AppUpdater] Пропускаем: {relativePath}");
+                    Debug.WriteLine($"[AppUpdater] Пропускаем исключенный файл: {fileName}");
                     continue;
                 }
 
                 // Создаем директорию, если нужно
                 string targetDirPath = Path.GetDirectoryName(targetFile);
                 if (!Directory.Exists(targetDirPath))
+                {
                     Directory.CreateDirectory(targetDirPath);
+                    Debug.WriteLine($"[AppUpdater] Создана директория: {targetDirPath}");
+                }
 
-                // Копируем файл
-                Debug.WriteLine($"[AppUpdater] Обновляем: {relativePath}");
-                File.Copy(sourceFile, targetFile, true);
+                try
+                {
+                    // Копируем файл с перезаписью
+                    File.Copy(sourceFile, targetFile, true);
+                    Debug.WriteLine($"[AppUpdater] Обновлен: {relativePath}");
+
+                    // Небольшая задержка для стабильности
+                    await Task.Delay(10);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[AppUpdater] Ошибка копирования {relativePath}: {ex.Message}");
+                    throw; // Пробрасываем исключение дальше
+                }
             }
         }
 
@@ -102,30 +121,60 @@ namespace UFZapret.Lib
             try
             {
                 string apiUrl = "https://api.github.com/repos/frmeister/UFZ-GUI/releases/latest";
+
+                // Добавляем заголовок User-Agent(обязательно для GitHub API)
+                _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("UFZapret-Update-Agent");
                 var response = await _httpClient.GetAsync(apiUrl);
 
                 if (!response.IsSuccessStatusCode)
+                {
+                    Debug.WriteLine($"[AppUpdater] GitHub API error: {response.StatusCode}");
                     return null;
+                }
 
                 var json = await response.Content.ReadAsStringAsync();
+                Debug.WriteLine($"[AppUpdater] API Response: {json.Substring(0, Math.Min(500, json.Length))}...");
 
-                // Ищем asset с zip архивом
-                if (json.Contains("\"browser_download_url\""))
+                if (json.Contains("\"assets\""))
                 {
-                    int start = json.IndexOf("\"browser_download_url\":\"") + "\"browser_download_url\":\"".Length;
-                    int end = json.IndexOf("\"", start);
-                    if (start > 0 && end > start)
+                    // Ищем секцию assets
+                    int assetsStart = json.IndexOf("\"assets\":[") + "\"assets\":[".Length;
+                    if (assetsStart >= 0)
                     {
-                        string url = json.Substring(start, end - start);
-                        if (url.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
-                            return url;
+                        int assetsEnd = json.IndexOf("]", assetsStart);
+                        if (assetsEnd > assetsStart)
+                        {
+                            string assetsSection = json.Substring(assetsStart, assetsEnd - assetsStart);
+
+                            // Разделяем по assets
+                            var assets = assetsSection.Split(new[] { "}," }, StringSplitOptions.RemoveEmptyEntries);
+
+                            foreach (var asset in assets)
+                            {
+                                // Ищем zip файл
+                                if (asset.Contains("\"browser_download_url\"") &&
+                                    asset.Contains(".zip\""))
+                                {
+                                    int urlStart = asset.IndexOf("\"browser_download_url\":\"") + "\"browser_download_url\":\"".Length;
+                                    int urlEnd = asset.IndexOf("\"", urlStart);
+                                    if (urlStart > 0 && urlEnd > urlStart)
+                                    {
+                                        string url = asset.Substring(urlStart, urlEnd - urlStart);
+                                        Debug.WriteLine($"[AppUpdater] Found download URL: {url}");
+                                        return url;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 
+                Debug.WriteLine("[AppUpdater] No zip asset found");
                 return null;
             }
-            catch
+            catch (Exception ex)
             {
+                Debug.WriteLine($"[AppUpdater] Error in GetLatestReleaseDownloadUrl: {ex.Message}");
                 return null;
             }
         }

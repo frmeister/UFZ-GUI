@@ -31,65 +31,95 @@
         {
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(FormMain));
             panelGeneral = new Panel();
+            buttonConfiguration = new Button();
             buttonSettings = new Button();
             textBoxStatus = new TextBox();
-            buttonConfiguration = new Button();
+            pictureBoxTheme = new PictureBox();
+            pictureBoxThemeHead = new PictureBox();
             panelStatus = new Panel();
             buttonStart = new Button();
             splitter1 = new Splitter();
             panelGeneral.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBoxTheme).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBoxThemeHead).BeginInit();
             panelStatus.SuspendLayout();
             SuspendLayout();
             // 
             // panelGeneral
             // 
             panelGeneral.BackColor = SystemColors.AppWorkspace;
+            panelGeneral.Controls.Add(buttonConfiguration);
             panelGeneral.Controls.Add(buttonSettings);
             panelGeneral.Controls.Add(textBoxStatus);
-            panelGeneral.Controls.Add(buttonConfiguration);
+            panelGeneral.Controls.Add(pictureBoxTheme);
             panelGeneral.Dock = DockStyle.Top;
             panelGeneral.Location = new Point(0, 0);
             panelGeneral.Name = "panelGeneral";
             panelGeneral.Size = new Size(784, 96);
             panelGeneral.TabIndex = 0;
             // 
+            // buttonConfiguration
+            // 
+            buttonConfiguration.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            buttonConfiguration.BackColor = Color.Transparent;
+            buttonConfiguration.Image = (Image)resources.GetObject("buttonConfiguration.Image");
+            buttonConfiguration.Location = new Point(695, 3);
+            buttonConfiguration.Name = "buttonConfiguration";
+            buttonConfiguration.Size = new Size(86, 87);
+            buttonConfiguration.TabIndex = 1;
+            buttonConfiguration.UseVisualStyleBackColor = false;
+            buttonConfiguration.Click += buttonConfiguration_Click;
+            // 
             // buttonSettings
             // 
+            buttonSettings.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+            buttonSettings.BackColor = Color.Transparent;
+            buttonSettings.BackgroundImageLayout = ImageLayout.None;
+            buttonSettings.Cursor = Cursors.Hand;
+            buttonSettings.ForeColor = SystemColors.ControlText;
             buttonSettings.Image = (Image)resources.GetObject("buttonSettings.Image");
-            buttonSettings.Location = new Point(596, 3);
+            buttonSettings.Location = new Point(603, 3);
             buttonSettings.Name = "buttonSettings";
             buttonSettings.Size = new Size(86, 87);
             buttonSettings.TabIndex = 3;
-            buttonSettings.UseVisualStyleBackColor = true;
+            buttonSettings.UseVisualStyleBackColor = false;
             buttonSettings.Click += buttonSettings_Click;
             // 
             // textBoxStatus
             // 
             textBoxStatus.Enabled = false;
             textBoxStatus.Font = new Font("Meiryo UI", 12F);
-            textBoxStatus.Location = new Point(226, 3);
+            textBoxStatus.Location = new Point(3, 3);
             textBoxStatus.Multiline = true;
             textBoxStatus.Name = "textBoxStatus";
             textBoxStatus.Size = new Size(303, 87);
             textBoxStatus.TabIndex = 2;
             textBoxStatus.Text = "Status:\r\n";
             // 
-            // buttonConfiguration
+            // pictureBoxTheme
             // 
-            buttonConfiguration.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            buttonConfiguration.Image = (Image)resources.GetObject("buttonConfiguration.Image");
-            buttonConfiguration.Location = new Point(695, 3);
-            buttonConfiguration.Name = "buttonConfiguration";
-            buttonConfiguration.Size = new Size(86, 87);
-            buttonConfiguration.TabIndex = 1;
-            buttonConfiguration.UseVisualStyleBackColor = true;
-            buttonConfiguration.Click += buttonConfiguration_Click;
+            pictureBoxTheme.Image = (Image)resources.GetObject("pictureBoxTheme.Image");
+            pictureBoxTheme.Location = new Point(0, 0);
+            pictureBoxTheme.Name = "pictureBoxTheme";
+            pictureBoxTheme.Size = new Size(784, 227);
+            pictureBoxTheme.TabIndex = 2;
+            pictureBoxTheme.TabStop = false;
+            // 
+            // pictureBoxThemeHead
+            // 
+            pictureBoxThemeHead.BackgroundImage = (Image)resources.GetObject("pictureBoxThemeHead.BackgroundImage");
+            pictureBoxThemeHead.Location = new Point(-18, -27);
+            pictureBoxThemeHead.Name = "pictureBoxThemeHead";
+            pictureBoxThemeHead.Size = new Size(799, 511);
+            pictureBoxThemeHead.TabIndex = 3;
+            pictureBoxThemeHead.TabStop = false;
             // 
             // panelStatus
             // 
             panelStatus.BackColor = SystemColors.Control;
             panelStatus.Controls.Add(buttonStart);
             panelStatus.Controls.Add(splitter1);
+            panelStatus.Controls.Add(pictureBoxThemeHead);
             panelStatus.Dock = DockStyle.Fill;
             panelStatus.Location = new Point(0, 96);
             panelStatus.Name = "panelStatus";
@@ -100,9 +130,9 @@
             // 
             buttonStart.Enabled = false;
             buttonStart.Image = (Image)resources.GetObject("buttonStart.Image");
-            buttonStart.Location = new Point(260, 130);
+            buttonStart.Location = new Point(294, 170);
             buttonStart.Name = "buttonStart";
-            buttonStart.Size = new Size(247, 188);
+            buttonStart.Size = new Size(200, 140);
             buttonStart.TabIndex = 1;
             buttonStart.UseVisualStyleBackColor = true;
             buttonStart.Click += buttonStart_Click;
@@ -131,6 +161,8 @@
             Text = "Main";
             panelGeneral.ResumeLayout(false);
             panelGeneral.PerformLayout();
+            ((System.ComponentModel.ISupportInitialize)pictureBoxTheme).EndInit();
+            ((System.ComponentModel.ISupportInitialize)pictureBoxThemeHead).EndInit();
             panelStatus.ResumeLayout(false);
             ResumeLayout(false);
         }
@@ -144,5 +176,7 @@
         private TextBox textBoxStatus;
         private Button buttonStart;
         private Button buttonSettings;
+        private PictureBox pictureBoxTheme;
+        private PictureBox pictureBoxThemeHead;
     }
 }

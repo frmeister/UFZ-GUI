@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Drawing.Drawing2D;
 using UFZ.Lib;
 using UFZapret.Lib;
 
@@ -43,6 +44,7 @@ namespace UFZapret.Forms
             CheckIsConfigAvalible();
             InitializeTrayIcon();
             CheckAutoStartStatus();
+            ThemeChanger();
 
             this.FormClosing += FormMain_FormClosing;
             this.Resize += FormMain_Resize;
@@ -306,20 +308,6 @@ namespace UFZapret.Forms
             }
         }
 
-        private void TrayStartup()
-        {
-            string[] args = Environment.GetCommandLineArgs();
-            bool startMinimized = args.Contains("--minimized");
-
-            if (startMinimized)
-            {
-                this.Load += (s, e) => {
-                    // Сразу сворачиваем в трей
-                    MinimizeToTray();
-                };
-            }
-        }
-
         private void FormMain_Resize(object sender, EventArgs e)
         {
             // Сворачиваем в трей при нажатии на кнопку "минус"
@@ -329,13 +317,36 @@ namespace UFZapret.Forms
             }
         }
 
-        private void ThemeChanger()
+        public void ThemeChanger()
         {
+            string currentTheme = ConfigManager.GetValue("theme", "");
 
+            switch (currentTheme)
+            {
+                case ("default"):
+                    pictureBoxTheme.Visible = false;
+                    pictureBoxThemeHead.Visible = false;
+                    break;
+                case ("hohloma"):
+
+                    GraphicsPath buttonPath = new GraphicsPath();
+
+                    buttonStart.Height = 80; buttonStart.Width = 80;
+
+                    buttonPath.AddEllipse(0, 0, buttonStart.Width, buttonStart.Height);
+                    buttonStart.Region = new Region(buttonPath);
+
+                    buttonStart.Location = new Point(327, 187);
+
+                    MaximumSize = new Size(750, 600);
+                    MinimumSize = new Size(750, 600);
+
+                    pictureBoxTheme.Visible = true;
+                    pictureBoxThemeHead.Visible = true;
+                    break;
+            }
         }
 
         #endregion
-
-
     }
 }
