@@ -63,12 +63,12 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: Release v${{ steps.create_zip.outputs.version }}
         body: |
-          Сборка приложения UFZapret версии ${{ steps.create_zip.outputs.version }}
+          Building UFZ app version ${{ steps.create_zip.outputs.version }}
           
           **Инструкция:**
-          1. Скачайте архив UFZapret-v${{ steps.create_zip.outputs.version }}.zip
-          2. Распакуйте в любую папку
-          3. Запустите UFZapret.Forms.exe
+          1. Download archive UFZapret-v${{ steps.create_zip.outputs.version }}.zip
+          2. Unpack in any directory you want
+          3. Execute UFZapret.Forms.exe
         draft: false
         prerelease: false
         files: |

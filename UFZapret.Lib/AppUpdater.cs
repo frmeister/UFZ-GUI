@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -122,7 +122,7 @@ namespace UFZapret.Lib
             {
                 string apiUrl = "https://api.github.com/repos/frmeister/UFZ-GUI/releases/latest";
 
-                // Добавляем заголовок User-Agent(обязательно для GitHub API)
+                // Добавляем заголовок User-Agent (обязательно для GitHub API)
                 _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("UFZapret-Update-Agent");
                 var response = await _httpClient.GetAsync(apiUrl);
 
@@ -138,9 +138,10 @@ namespace UFZapret.Lib
                 if (json.Contains("\"assets\""))
                 {
                     // Ищем секцию assets
-                    int assetsStart = json.IndexOf("\"assets\":[") + "\"assets\":[".Length;
+                    int assetsStart = json.IndexOf("\"assets\":[", StringComparison.OrdinalIgnoreCase);
                     if (assetsStart >= 0)
                     {
+                        assetsStart += "\"assets\":[".Length;
                         int assetsEnd = json.IndexOf("]", assetsStart);
                         if (assetsEnd > assetsStart)
                         {
@@ -152,16 +153,20 @@ namespace UFZapret.Lib
                             foreach (var asset in assets)
                             {
                                 // Ищем zip файл
-                                if (asset.Contains("\"browser_download_url\"") &&
-                                    asset.Contains(".zip\""))
+                                if (asset.Contains("\"browser_download_url\"", StringComparison.OrdinalIgnoreCase) &&
+                                    asset.Contains(".zip\"", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    int urlStart = asset.IndexOf("\"browser_download_url\":\"") + "\"browser_download_url\":\"".Length;
-                                    int urlEnd = asset.IndexOf("\"", urlStart);
-                                    if (urlStart > 0 && urlEnd > urlStart)
+                                    int urlStart = asset.IndexOf("\"browser_download_url\":\"", StringComparison.OrdinalIgnoreCase);
+                                    if (urlStart >= 0)
                                     {
-                                        string url = asset.Substring(urlStart, urlEnd - urlStart);
-                                        Debug.WriteLine($"[AppUpdater] Found download URL: {url}");
-                                        return url;
+                                        urlStart += "\"browser_download_url\":\"".Length;
+                                        int urlEnd = asset.IndexOf("\"", urlStart);
+                                        if (urlEnd > urlStart)
+                                        {
+                                            string url = asset.Substring(urlStart, urlEnd - urlStart);
+                                            Debug.WriteLine($"[AppUpdater] Found download URL: {url}");
+                                            return url;
+                                        }
                                     }
                                 }
                             }
@@ -175,6 +180,48 @@ namespace UFZapret.Lib
             catch (Exception ex)
             {
                 Debug.WriteLine($"[AppUpdater] Error in GetLatestReleaseDownloadUrl: {ex.Message}");
+                return null;
+            }
+        }
+
+        // Получение версии последнего релиза (tag_name)
+        public static async Task<string> GetLatestReleaseVersionAsync()
+        {
+            try
+            {
+                string apiUrl = "https://api.github.com/repos/frmeister/UFZ-GUI/releases/latest";
+
+                _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("UFZapret-Update-Agent");
+                var response = await _httpClient.GetAsync(apiUrl);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    Debug.WriteLine($"[AppUpdater] GitHub API error (version): {response.StatusCode}");
+                    return null;
+                }
+
+                var json = await response.Content.ReadAsStringAsync();
+                Debug.WriteLine($"[AppUpdater] Version API Response: {json.Substring(0, Math.Min(300, json.Length))}...");
+
+                int tagStart = json.IndexOf("\"tag_name\":\"", StringComparison.OrdinalIgnoreCase);
+                if (tagStart >= 0)
+                {
+                    tagStart += "\"tag_name\":\"".Length;
+                    int tagEnd = json.IndexOf("\"", tagStart);
+                    if (tagEnd > tagStart)
+                    {
+                        string tag = json.Substring(tagStart, tagEnd - tagStart).Trim();
+                        Debug.WriteLine($"[AppUpdater] Found latest tag_name: {tag}");
+                        return tag;
+                    }
+                }
+
+                Debug.WriteLine("[AppUpdater] tag_name not found in release JSON");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[AppUpdater] Error in GetLatestReleaseVersionAsync: {ex.Message}");
                 return null;
             }
         }

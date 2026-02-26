@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Data;
@@ -63,19 +63,27 @@ namespace UFZapret.Forms
                 UpdateStatus_Version("\nПроверка обновлений...", 1);
                 System.Windows.Forms.Application.DoEvents(); // Обновляем UI
 
-                // Получаем текущую версию приложения
+                // Получаем текущую локальную версию приложения
                 string currentVersion = DataService.GetLocalVersion_Gui();
 
                 Debug.WriteLine($"[FormSettings] Проверка обновлений GUI. Текущая версия: {currentVersion}");
 
-                // Проверяем обновление для GUI (false = проверка обновлений GUI)
-                bool updateAvailable = await DataService.IsThereUpdateZapret_OriginAsync("", false);
+                // Получаем версию последнего релиза с GitHub через GitHub API
+                string latestVersion = await AppUpdater.GetLatestReleaseVersionAsync();
+                if (string.IsNullOrWhiteSpace(latestVersion))
+                {
+                    Debug.WriteLine("[FormSettings] Не удалось получить версию последнего релиза с GitHub");
+                    UpdateStatus_Version("\n❌ Не удалось получить информацию об обновлении", 1);
+                    return;
+                }
 
-                Debug.WriteLine($"[FormSettings] Результат проверки: {updateAvailable}");
+                bool updateAvailable = IsNewerVersion(latestVersion, currentVersion);
+
+                Debug.WriteLine($"[FormSettings] Результат проверки. Удаленная версия: {latestVersion}, обновление доступно: {updateAvailable}");
 
                 if (updateAvailable)
                 {
-                    UpdateStatus_Version("\n✅ Доступно обновление!", 1);
+                    UpdateStatus_Version($"\n✅ Доступно обновление! Новая версия: {latestVersion}", 1);
                     settings_buttonUpdate.Enabled = true;
                 }
                 else
@@ -114,6 +122,32 @@ namespace UFZapret.Forms
         }
 
         #endregion
+
+        private bool IsNewerVersion(string remote, string local)
+        {
+            if (string.IsNullOrWhiteSpace(remote))
+            {
+                return false;
+            }
+
+            // Убираем префикс 'v' у тега, если он есть (например, v0.4.1)
+            string Normalize(string v) =>
+                string.IsNullOrWhiteSpace(v)
+                    ? "0.0.0"
+                    : v.Trim().TrimStart('v', 'V');
+
+            string remoteNorm = Normalize(remote);
+            string localNorm = Normalize(local);
+
+            if (Version.TryParse(remoteNorm, out var remoteVer) &&
+                Version.TryParse(localNorm, out var localVer))
+            {
+                return remoteVer > localVer;
+            }
+
+            // Если не удалось распарсить как System.Version — просто сравниваем строки
+            return !string.Equals(remoteNorm, localNorm, StringComparison.OrdinalIgnoreCase);
+        }
 
         private void settings_buttonSave_Click(object sender, EventArgs e)
         {
