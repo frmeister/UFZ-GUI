@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Principal;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using UFZapret.Lib;
@@ -22,12 +23,14 @@ namespace UFZapret.Forms
         public static async Task<bool> Start(string zapretFolder, string configName)
         {
             Debug.WriteLine("=== STARTING ZAPRET ===");
+            LogToFile("=== STARTING ZAPRET ==="); // LOG1
 
             try
             {
                 if (isRunning)
                 {
                     Debug.WriteLine("Zapret уже запущен");
+                    LogToFile("Zapret уже запущен"); // LOG1
                     return false;
                 }
 
@@ -35,6 +38,7 @@ namespace UFZapret.Forms
                 if (!File.Exists(configPath))
                 {
                     Debug.WriteLine($"Конфиг не найден: {configPath}");
+                    LogToFile($"Конфиг не найден: {configPath}"); // LOG1
                     MessageBox.Show($"Конфигурационный файл не найден:\n{configPath}",
                         "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
@@ -45,16 +49,19 @@ namespace UFZapret.Forms
 
                 string gameFilter = GetGameFilter(zapretFolder);
                 Debug.WriteLine($"GameFilter: {gameFilter}");
+                LogToFile($"GameFilter: {gameFilter}"); // LOG1
 
                 string arguments = await ParseBatArgumentsAsync(configPath, zapretFolder, gameFilter);
                 if (string.IsNullOrEmpty(arguments))
                 {
+                    LogToFile($"Не удалось получить аргументы для запуска."); // LOG1
                     MessageBox.Show("Не удалось получить аргументы для запуска.",
                         "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
 
                 Debug.WriteLine($"Аргументы winws.exe: {arguments}");
+                LogToFile($"Аргументы winws.exe: {arguments}"); // LOG1
 
                 string winwsPath = Path.Combine(zapretFolder, "bin", "winws.exe");
                 return await StartWinwsAsync(winwsPath, arguments, zapretFolder);
@@ -62,6 +69,7 @@ namespace UFZapret.Forms
             catch (Exception ex)
             {
                 Debug.WriteLine($"Ошибка запуска: {ex.Message}");
+                LogToFile($"Ошибка запуска: {ex.Message}"); // LOG1
                 MessageBox.Show($"Ошибка запуска: {ex.Message}", "Ошибка",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
@@ -228,34 +236,6 @@ namespace UFZapret.Forms
             }
         }
 
-        private static async Task EnableTcpTimestampsAsync()
-        {
-            try
-            {
-                Debug.WriteLine("=== Включение TCP timestamps ===");
-
-                using (var process = Process.Start(new ProcessStartInfo
-                {
-                    FileName = "netsh",
-                    Arguments = "interface tcp set global timestamps=enabled",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                }))
-                {
-                    await Task.Run(() => process.WaitForExit(3000));
-                    Debug.WriteLine(process.ExitCode == 0
-                        ? "TCP timestamps включены"
-                        : $"Не удалось включить TCP timestamps. Код: {process.ExitCode}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Ошибка включения TCP timestamps: {ex.Message}");
-            }
-        }
-
         private static string GetGameFilter(string zapretFolder)
         {
             try
@@ -318,16 +298,21 @@ namespace UFZapret.Forms
                         string result = multiLineArgs.ToString().Trim();
 
                         result = result.Replace("\"%BIN%", binPath)
-                                     .Replace("\"%LISTS%", listsPath)
-                                     .Replace("%BIN%", binPath)
-                                     .Replace("%LISTS%", listsPath)
-                                     .Replace("%GameFilter%", gameFilter);
+                                       .Replace("\"%LISTS%", listsPath)
+                                       .Replace("%BIN%", binPath)
+                                       .Replace("%LISTS%", listsPath)
+                                       .Replace("%GameFilter%", gameFilter)
+                                       .Replace("%GameFilterTCP%", gameFilter)    // добавьте, если gameFilter подходит
+                                       .Replace("%GameFilterUDP%", gameFilter);   // но возможно нужны отдельные значения
 
                         string basePath = zapretFolder + "\\";
                         if (result.Contains(basePath + basePath))
                             result = result.Replace(basePath + basePath, basePath);
 
                         result = result.Replace("\"", "").Trim();
+
+                        result = result.Replace("^", " ");
+                        result = Regex.Replace(result, @"\s+", " ").Trim();
 
                         Debug.WriteLine($"Парсинг завершен: {result}");
                         return result;
@@ -348,8 +333,7 @@ namespace UFZapret.Forms
             try
             {
                 Debug.WriteLine($"Запуск winws.exe: {winwsPath}\nАргументы: {arguments}\nРабочая папка: {workingDir}");
-
-                await EnableTcpTimestampsAsync();
+                LogToFile($"Запуск winws.exe: {winwsPath}\nАргументы: {arguments}\nРабочая папка: {workingDir}"); // LOG1
 
                 var startInfo = new ProcessStartInfo
                 {
@@ -357,7 +341,7 @@ namespace UFZapret.Forms
                     Arguments = arguments,
                     WorkingDirectory = workingDir,
                     UseShellExecute = true,
-                    Verb = "runas",
+                    Verb = "runas",          // UAC ТОЛЬКО для winws
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 };
@@ -372,6 +356,7 @@ namespace UFZapret.Forms
                 catch (System.ComponentModel.Win32Exception ex) when (ex.NativeErrorCode == 1223)
                 {
                     Debug.WriteLine("Пользователь отказался от UAC");
+                    LogToFile("Пользователь отказался от UAC"); // LOG1
                     MessageBox.Show("Для запуска zapret требуются права администратора.",
                         "Требуются права", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return false;
@@ -382,12 +367,23 @@ namespace UFZapret.Forms
                     winwsProcess.EnableRaisingEvents = true;
                     winwsProcess.Exited += (s, e) =>
                     {
-                        lock (processLock)
+                        try
                         {
-                            isRunning = false;
-                            winwsProcess = null;
+                            Debug.WriteLine("Обработчик Exited начат");
+                            LogToFile("Обработчик Exited начат"); // LOG1
+                            lock (processLock)
+                            {
+                                isRunning = false;
+                                winwsProcess = null;
+                            }
+                            Debug.WriteLine("Обработчик Exited завершён");
+                            LogToFile("Обработчик Exited завершён"); // LOG1
                         }
-                        Debug.WriteLine("Процесс winws.exe завершился");
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Ошибка в обработчике Exited: {ex}");
+                            LogToFile($"Ошибка в обработчике Exited: {ex}"); // LOG1
+                        }
                     };
 
                     isRunning = true;
@@ -398,6 +394,7 @@ namespace UFZapret.Forms
                     if (winwsProcess.HasExited)
                     {
                         Debug.WriteLine($"Winws.exe завершился с кодом: {winwsProcess.ExitCode}");
+                        LogToFile($"Winws.exe завершился с кодом: {winwsProcess.ExitCode}"); // LOG1
                         isRunning = false;
                         winwsProcess = null;
 
@@ -408,6 +405,7 @@ namespace UFZapret.Forms
 
                     StartProcessTracking(winwsProcess);
                     Debug.WriteLine($"Процесс winws.exe запущен (ID: {winwsProcess.Id})");
+                    LogToFile($"Процесс winws.exe запущен (ID: {winwsProcess.Id})"); // LOG1
                     return true;
                 }
 
@@ -416,6 +414,7 @@ namespace UFZapret.Forms
             catch (Exception ex)
             {
                 Debug.WriteLine($"Ошибка запуска winws.exe: {ex.Message}");
+                LogToFile($"Ошибка запуска winws.exe: {ex.Message}"); // LOG1
                 MessageBox.Show($"Ошибка запуска: {ex.Message}", "Ошибка",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return false;
@@ -424,6 +423,13 @@ namespace UFZapret.Forms
 
         private static void StartProcessTracking(Process process)
         {
+            if (process == null)
+            {
+                Debug.WriteLine("StartProcessTracking: process is null");
+                LogToFile("StartProcessTracking: process is null"); // LOG1
+                return;
+            }
+
             trackingCancellationTokenSource = new CancellationTokenSource();
             var token = trackingCancellationTokenSource.Token;
 
@@ -431,10 +437,10 @@ namespace UFZapret.Forms
             {
                 while (!token.IsCancellationRequested)
                 {
-                    await Task.Delay(2000, token);
-
                     try
                     {
+                        await Task.Delay(2000, token).ConfigureAwait(false);
+
                         bool shouldExit = false;
                         lock (processLock)
                         {
@@ -451,9 +457,14 @@ namespace UFZapret.Forms
 
                         if (shouldExit) break;
                     }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
                     catch (Exception ex)
                     {
-                        Debug.WriteLine($"Ошибка отслеживания процесса: {ex.Message}");
+                        Debug.WriteLine($"Ошибка в цикле отслеживания: {ex}");
+                        LogToFile($"Ошибка в цикле отслеживания: {ex}"); // LOG1
                         break;
                     }
                 }
@@ -478,6 +489,7 @@ namespace UFZapret.Forms
             catch (Exception ex)
             {
                 Debug.WriteLine($"Ошибка graceful shutdown: {ex.Message}");
+                LogToFile($"Ошибка graceful shutdown: {ex.Message}"); // LOG1
                 try { process.Kill(); } catch { }
             }
         }
@@ -548,11 +560,13 @@ namespace UFZapret.Forms
                 await Stop();
 
                 Debug.WriteLine($"[ZapretService] Config {configName} test result: {isWorking}");
+                LogToFile($"[ZapretService] Config {configName} test result: {isWorking}"); // LOG1
                 return isWorking;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ZapretService] TestConfigAsync error: {ex.Message}");
+                LogToFile($"[ZapretService] TestConfigAsync error: {ex.Message}"); // LOG1
                 await Stop(); // Гарантированная остановка при ошибке
                 return false;
             }
@@ -566,6 +580,7 @@ namespace UFZapret.Forms
                 if (!Directory.Exists(folderPath))
                 {
                     Debug.WriteLine($"[ZapretService] Folder not found: {folderPath}");
+                    LogToFile($"[ZapretService] Folder not found: {folderPath}"); // LOG1
                     return null;
                 }
 
@@ -578,10 +593,12 @@ namespace UFZapret.Forms
                 if (configFiles.Count == 0)
                 {
                     Debug.WriteLine($"[ZapretService] No config files found in: {folderPath}");
+                    LogToFile($"[ZapretService] No config files found in: {folderPath}"); // LOG1
                     return null;
                 }
 
                 Debug.WriteLine($"[ZapretService] Found {configFiles.Count} configs to test");
+                LogToFile($"[ZapretService] Found {configFiles.Count} configs to test"); // LOG1
 
                 string workingConfig = null;
 
@@ -608,8 +625,19 @@ namespace UFZapret.Forms
             catch (Exception ex)
             {
                 Debug.WriteLine($"[ZapretService] FindWorkingConfigAsync error: {ex.Message}");
+                LogToFile($"[ZapretService] FindWorkingConfigAsync error: {ex.Message}"); // LOG1
                 return null;
             }
+        }
+
+        private static void LogToFile(string message)
+        {
+            try
+            {
+                string logPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "zapret_debug.log");
+                File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} - {message}\n");
+            }
+            catch { }
         }
 
     }

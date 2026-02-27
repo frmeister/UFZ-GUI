@@ -10,10 +10,18 @@ namespace UFZapret.Forms
         private static Mutex mutex;
         private static bool forceStopCalled = false;
         private static string logFilePath = "app_startup.log";
+        private static readonly object crashLogLock = new object();
 
         [STAThread]
         static void Main(string[] args)
         {
+            // === ГЛОБАЛЬНЫЕ ОБРАБОТЧИКИ ИСКЛЮЧЕНИЙ ===
+            Application.ThreadException += Application_ThreadException;
+            AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
+            TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
+            Application.ApplicationExit += OnApplicationExit;
+            AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+
             // Создаем мьютекс для предотвращения запуска нескольких копий
             bool createdNew;
             mutex = new Mutex(true, "UFZapret.Forms.SingleInstance", out createdNew);
@@ -134,7 +142,9 @@ namespace UFZapret.Forms
             mutex?.ReleaseMutex();
 
             LogToFile("Application exit completed");
-    }
+        }
+
+        #region Логирование
 
         private static void LogToFile(string message)
         {
@@ -149,6 +159,55 @@ namespace UFZapret.Forms
                 // Игнорируем ошибки логирования
             }
         }
+
+        private static void LogCrash(Exception ex)
+        {
+            try
+            {
+                lock (crashLogLock)
+                {
+                    string crashLog = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash.log");
+                    string content = $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] CRASH: {ex}\n";
+                    File.AppendAllText(crashLog, content);
+                    Debug.WriteLine(content);
+                }
+            }
+            catch { }
+        }
+
+        #endregion
+
+        #region Обработчики исключений
+
+        private static void Application_ThreadException(object sender, ThreadExceptionEventArgs e)
+        {
+            LogCrash(e.Exception);
+            ZapretService.ForceStop(); // Принудительно останавливаем zapret
+            MessageBox.Show($"Произошла критическая ошибка:\n{e.Exception.Message}\n\nПодробности в файле crash.log",
+                "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
+        private static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
+        {
+            Exception ex = e.ExceptionObject as Exception;
+            LogCrash(ex);
+            ZapretService.ForceStop();
+            MessageBox.Show($"Произошла критическая ошибка:\n{ex?.Message}\n\nПодробности в файле crash.log",
+                "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
+        private static void TaskScheduler_UnobservedTaskException(object sender, UnobservedTaskExceptionEventArgs e)
+        {
+            LogCrash(e.Exception);
+            ZapretService.ForceStop();
+            e.SetObserved(); // Предотвращаем аварийное завершение процесса
+            MessageBox.Show($"Произошла необработанная ошибка в задаче:\n{e.Exception.Message}\n\nПодробности в файле crash.log",
+                "Ошибка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+
+        #endregion
+
+        #region Обработчики завершения
 
         private static void OnApplicationExit(object sender, EventArgs e)
         {
@@ -168,11 +227,7 @@ namespace UFZapret.Forms
             ZapretService.ForceStop();
         }
 
-        private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
-        {
-            Debug.WriteLine($"=== UnhandledException: {e.ExceptionObject} ===");
-            ZapretService.ForceStop();
-        }
+        #endregion
 
         // Класс сплеш-экрана
         public class FormSplash : Form
